@@ -1,0 +1,184 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Role {
+  id          Int       @id @default(autoincrement())
+  nombre      String    @unique @db.VarChar(50)
+  descripcion String?   @db.VarChar(255)
+  usuarios    Usuario[]
+
+  @@map("roles")
+}
+
+model Empleado {
+  id         Int                 @id @default(autoincrement())
+  nombre     String              @db.VarChar(100)
+  telefono   String              @db.VarChar(20)
+  cargo      String              @db.VarChar(100)
+  estado     String              @default("Activo") @db.VarChar(20)
+  creadoEn   DateTime            @default(now()) @map("creado_en")
+  usuario    Usuario?
+  produccion OrdenProduccion[]
+
+  @@map("empleados")
+}
+
+model Usuario {
+  id                 Int                 @id @default(autoincrement())
+  usuario            String              @unique @db.VarChar(50)
+  contrasena         String              @db.VarChar(255)
+  rolId              Int                 @map("rol_id")
+  empleadoId         Int?                @unique @map("empleado_id")
+  creadoEn           DateTime            @default(now()) @map("creado_en")
+  
+  rol                Role                @relation(fields: [rolId], references: [id], onDelete: Restrict)
+  empleado           Empleado?           @relation(fields: [empleadoId], references: [id], onDelete: SetNull)
+  ventas             Venta[]
+  pedidos            PedidoProveedor[]
+  movimientos        MovimientoInventario[]
+
+  @@map("usuarios")
+}
+
+model Categoria {
+  id        Int        @id @default(autoincrement())
+  nombre    String     @unique @db.VarChar(100)
+  productos Producto[]
+
+  @@map("categorias")
+}
+
+model Proveedor {
+  id        Int               @id @default(autoincrement())
+  nombre    String            @unique @db.VarChar(150)
+  telefono  String            @db.VarChar(20)
+  direccion String?           @db.Text
+  creadoEn  DateTime          @default(now()) @map("creado_en")
+  productos Producto[]
+  pedidos   PedidoProveedor[]
+
+  @@map("proveedores")
+}
+
+model Producto {
+  id             Int                    @id @default(autoincrement())
+  oem            String                 @unique @db.VarChar(50)
+  nombre         String                 @db.VarChar(150)
+  categoriaId    Int                    @map("categoria_id")
+  precio         Decimal                @db.Decimal(10, 2)
+  stock          Int                    @default(0)
+  compatibilidad String                 @db.Text
+  proveedorId    Int?                   @map("proveedor_id")
+  creadoEn       DateTime               @default(now()) @map("creado_en")
+  
+  categoria      Categoria              @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  proveedor      Proveedor?             @relation(fields: [proveedorId], references: [id], onDelete: SetNull)
+  detallesVenta  DetalleVenta[]
+  detallesPedido DetallePedidoProveedor[]
+  movimientos    MovimientoInventario[]
+  produccion     OrdenProduccion[]
+
+  @@map("productos")
+}
+
+model Cliente {
+  id        Int      @id @default(autoincrement())
+  nombre    String   @db.VarChar(150)
+  telefono  String?  @db.VarChar(20)
+  direccion String?  @db.Text
+  creadoEn  DateTime @default(now()) @map("creado_en")
+  ventas    Venta[]
+
+  @@map("clientes")
+}
+
+model Venta {
+  id        Int            @id @default(autoincrement())
+  clienteId Int?           @map("cliente_id")
+  usuarioId Int?           @map("usuario_id")
+  fecha     DateTime       @default(now())
+  total     Decimal        @default(0.00) @db.Decimal(10, 2)
+  
+  cliente   Cliente?       @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  usuario   Usuario?       @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  detalles  DetalleVenta[]
+
+  @@map("ventas")
+}
+
+model DetalleVenta {
+  id             Int      @id @default(autoincrement())
+  ventaId        Int      @map("venta_id")
+  productoId     Int      @map("producto_id")
+  cantidad       Int
+  precioUnitario Decimal  @map("precio_unitario") @db.Decimal(10, 2)
+  
+  venta          Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  producto       Producto @relation(fields: [productoId], references: [id], onDelete: Restrict)
+
+  @@map("detalles_ventas")
+}
+
+model PedidoProveedor {
+  id          Int                      @id @default(autoincrement())
+  proveedorId Int                      @map("proveedor_id")
+  usuarioId   Int                      @map("usuario_id")
+  fecha       DateTime                 @default(now())
+  estado      String                   @default("Pendiente") @db.VarChar(20)
+  total       Decimal                  @default(0.00) @db.Decimal(10, 2)
+  
+  proveedor   Proveedor                @relation(fields: [proveedorId], references: [id], onDelete: Restrict)
+  usuario     Usuario                  @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  detalles    DetallePedidoProveedor[]
+
+  @@map("pedidos_proveedor")
+}
+
+model DetallePedidoProveedor {
+  id           Int             @id @default(autoincrement())
+  pedidoId     Int             @map("pedido_id")
+  productoId   Int             @map("producto_id")
+  cantidad     Int
+  precioCompra Decimal         @map("precio_compra") @db.Decimal(10, 2)
+  
+  pedido       PedidoProveedor @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  producto     Producto        @relation(fields: [productoId], references: [id], onDelete: Restrict)
+
+  @@map("detalles_pedidos_proveedor")
+}
+
+model MovimientoInventario {
+  id             Int      @id @default(autoincrement())
+  productoId     Int      @map("producto_id")
+  tipoMovimiento String   @map("tipo_movimiento") @db.VarChar(20)
+  cantidad       Int
+  fecha          DateTime @default(now())
+  motivo         String   @db.VarChar(255)
+  usuarioId      Int?     @map("usuario_id")
+  
+  producto       Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  usuario        Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@map("movimientos_inventario")
+}
+
+model OrdenProduccion {
+  id            Int       @id @default(autoincrement())
+  productoId    Int       @map("producto_id")
+  cantidad      Int
+  fechaInicio   DateTime  @default(now()) @map("fecha_inicio")
+  fechaFin      DateTime? @map("fecha_fin")
+  estado        String    @default("Pendiente") @db.VarChar(30)
+  responsableId Int?      @map("responsable_id")
+  
+  producto      Producto  @relation(fields: [productoId], references: [id], onDelete: Restrict)
+  responsable   Empleado? @relation(fields: [responsableId], references: [id], onDelete: SetNull)
+
+  @@map("ordenes_produccion")
+}

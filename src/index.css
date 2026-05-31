@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+@layer base {
+  :root {
+    --background: hsl(220 15% 7%);
+    --foreground: hsl(200 5% 95%);
+
+    --card: hsl(220 15% 12%);
+    --card-foreground: hsl(200 5% 95%);
+
+    --popover: hsl(220 15% 10%);
+    --popover-foreground: hsl(200 5% 95%);
+
+    --primary: hsl(16 100% 50%); /* Industrial Orange */
+    --primary-foreground: hsl(220 15% 7%);
+
+    --secondary: hsl(200 10% 25%); /* Steel Gray */
+    --secondary-foreground: hsl(200 5% 95%);
+
+    --muted: hsl(220 15% 15%);
+    --muted-foreground: hsl(200 5% 65%);
+
+    --accent: hsl(16 100% 55%);
+    --accent-foreground: hsl(220 15% 7%);
+
+    --destructive: hsl(0 84.2% 60.2%);
+    --destructive-foreground: hsl(0 0% 98%);
+
+    --border: hsl(220 15% 18%);
+    --input: hsl(220 15% 14%);
+    --ring: hsl(16 100% 50%);
+
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    background-color: hsl(220 15% 7%);
+    color: hsl(200 5% 95%);
+  }
+}
