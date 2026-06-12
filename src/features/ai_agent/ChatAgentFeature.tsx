@@ -1,125 +1,110 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Bot, Send, Trash2, Cpu, Sparkles, Database } from "lucide-react";
+import { Bot, Send, Trash2, Cpu, Sparkles, Database, ChevronDown, ChevronUp, MessageSquare, Terminal, HelpCircle } from "lucide-react";
 import { toast } from "../../components/ui/Toast";
 
-interface Message {
+export interface Message {
   id: string;
   sender: "user" | "agent";
   text: string;
   timestamp: Date;
 }
 
-const WORKFLOW_OPTIONS = [
+export interface WorkflowOption {
+  id: string;
+  label: string;
+  description: string;
+  examples: string[];
+}
+
+const WORKFLOW_OPTIONS: WorkflowOption[] = [
   {
-    id: "router",
-    label: "Router",
-    description: "Orquestador que elige automáticamente el agente correcto",
-    url: "http://localhost:5678/webhook/repuestos-router",
-    examples: ["Dónde está el filtro Hilux?", "Cómo está la caja?", "Dime ventas de hoy"],
+    id: "general",
+    label: "Orquestador General",
+    description: "Preguntas libres del ERP: stock, ventas, clientes, compras, etc.",
+    examples: [
+      "¿Qué productos están en stock crítico hoy?",
+      "Dime un resumen de las ventas de hoy y métodos de pago",
+      "¿Quiénes son nuestros clientes VIP o frecuentes?"
+    ],
   },
   {
     id: "inventory",
-    label: "Inventario",
-    description: "Stock, precios, ubicaciones, OEM y compatibilidad",
-    url: "http://localhost:5678/webhook/repuestos-inventario",
-    examples: ["¿Qué repuestos tenemos?", "Dónde está el filtro de aceite Hilux?", "Tienes bujía Bosch?"],
+    label: "Inventario y Almacén",
+    description: "Stock, precios, ubicaciones de repuestos y marcas",
+    examples: [
+      "¿Dónde está ubicado el repuesto con OEM de Hilux?",
+      "¿Cuántos amortiguadores Monroe tenemos disponibles?",
+      "Busca pastillas de freno en la base de datos"
+    ],
   },
   {
     id: "sales",
-    label: "Ventas",
-    description: "Ventas actuales, historial, boletas y métodos de pago",
-    url: "http://localhost:5678/webhook/repuestos-ventas",
-    examples: ["Dime nuestras ventas actuales", "Cuánto vendimos hoy?", "Últimas ventas registradas"],
-  },
-  {
-    id: "finance",
-    label: "Caja",
-    description: "Caja, ingresos, egresos, utilidad y cuentas por cobrar",
-    url: "http://localhost:5678/webhook/repuestos-finanzas",
-    examples: ["Cómo está la caja?", "Cuáles son los egresos?", "Cuentas por cobrar"],
+    label: "Ventas y Caja",
+    description: "Historial de ventas, boletas e ingresos de caja",
+    examples: [
+      "¿Cuáles son las últimas ventas registradas hoy?",
+      "¿Cuál es el saldo total de caja actual?",
+      "¿Cuánto se ha descontado en total hoy?"
+    ],
   },
   {
     id: "clients",
-    label: "Clientes",
-    description: "CRM, clientes premium, deudores y cartera",
-    url: "http://localhost:5678/webhook/repuestos-clientes",
-    examples: ["Clientes con deuda", "Clientes premium", "Resumen de CRM"],
+    label: "Clientes (CRM)",
+    description: "CRM, deudas, vehículos y fidelidad de clientes",
+    examples: [
+      "¿Qué clientes tienen deudas o cuentas por cobrar?",
+      "Busca clientes de tipo taller mecánico",
+      "Detalle de fidelidad de los clientes nuevos"
+    ],
   },
   {
     id: "purchases",
-    label: "Compras",
-    description: "Proveedores, pedidos pendientes y recepciones",
-    url: "http://localhost:5678/webhook/repuestos-compras",
-    examples: ["Compras pendientes", "Proveedores activos", "Pedidos recibidos"],
+    label: "Compras y Proveedores",
+    description: "Órdenes de compra, recepciones y marcas asociadas",
+    examples: [
+      "¿Qué pedidos de proveedores están pendientes de recibir?",
+      "Lista de proveedores activos con mejor calificación",
+      "¿Cuáles compras se recibieron esta semana?"
+    ],
   },
   {
     id: "production",
     label: "Producción",
-    description: "Órdenes, lotes, fábrica y responsables",
-    url: "http://localhost:5678/webhook/repuestos-produccion",
-    examples: ["Órdenes activas", "Producción pendiente", "Lotes finalizados"],
+    description: "Órdenes de producción, lotes y operarios a cargo",
+    examples: [
+      "¿Qué órdenes de producción están activas en planta?",
+      "Lotes finalizados ordenados por fecha",
+      "Lista de órdenes de producción de alta prioridad"
+    ],
   },
   {
     id: "employees",
-    label: "Empleados",
-    description: "Personal, cargos, estado y operarios",
-    url: "http://localhost:5678/webhook/repuestos-empleados",
-    examples: ["Empleados activos", "Cargos del personal", "Resumen de empleados"],
-  },
-  {
-    id: "users",
-    label: "Usuarios",
-    description: "Usuarios, roles, accesos y estado de cuentas",
-    url: "http://localhost:5678/webhook/repuestos-usuarios",
-    examples: ["Usuarios activos", "Roles del sistema", "Usuarios por rol"],
-  },
-  {
-    id: "general",
-    label: "Dashboard",
-    description: "Estado general, KPIs y alertas del negocio",
-    url: "http://localhost:5678/webhook/repuestos-chat-v2",
-    examples: ["Estado general del sistema", "Cómo está el negocio?", "Resumen del dashboard"],
+    label: "Empleados y Roles",
+    description: "Personal de la empresa, turnos y cargos",
+    examples: [
+      "Lista de empleados activos con su cargo y turno",
+      "¿Cuál es el turno asignado a los operarios?",
+      "Resumen de salarios y notas de personal"
+    ],
   },
 ];
-
-const getWorkflowHistoryKey = (workflowId: string) => `ai_chat_history_${workflowId}`;
-
-const parseStoredMessages = (saved: string | null): Message[] | null => {
-  if (!saved) return null;
-  try {
-    return JSON.parse(saved).map((m: any) => ({
-      ...m,
-      timestamp: new Date(m.timestamp),
-    }));
-  } catch {
-    return null;
-  }
-};
-
-const createWorkflowWelcome = (workflowId: string): Message[] => {
-  const workflow = WORKFLOW_OPTIONS.find((w) => w.id === workflowId) || WORKFLOW_OPTIONS[0];
-  return [
-    {
-      id: `welcome-${workflow.id}`,
-      sender: "agent",
-      text: `Flujo activo: **${workflow.label}**.\n\nPuedes probar:\n- ${workflow.examples.join("\n- ")}`,
-      timestamp: new Date(),
-    },
-  ];
-};
 
 export const ChatAgentFeature: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(false);
-  const [activeWorkflowId, setActiveWorkflowId] = useState(() => localStorage.getItem("ai_active_workflow") || "inventory");
-  const activeWorkflow = WORKFLOW_OPTIONS.find((w) => w.id === activeWorkflowId) || WORKFLOW_OPTIONS[0];
-  const [n8nUrl, setN8nUrl] = useState(() => localStorage.getItem("ai_n8n_url") || activeWorkflow.url);
+  const [activeTopicId, setActiveTopicId] = useState(() => localStorage.getItem("ai_active_topic") || "general");
+  const [n8nUrl, setN8nUrl] = useState(() => localStorage.getItem("ai_n8n_url") || "/api/telegram/chat-agent");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const activeTopic = WORKFLOW_OPTIONS.find((t) => t.id === activeTopicId) || WORKFLOW_OPTIONS[0];
 
   // Cargar historial de chat inicial
   useEffect(() => {
-    const saved = localStorage.getItem("ai_chat_history");
+    const saved = localStorage.getItem("ai_chat_history_unified");
     if (saved) {
       try {
         setMessages(JSON.parse(saved).map((m: any) => ({
@@ -127,40 +112,34 @@ export const ChatAgentFeature: React.FC = () => {
           timestamp: new Date(m.timestamp)
         })));
       } catch (e) {
-        localStorage.removeItem("ai_chat_history");
+        localStorage.removeItem("ai_chat_history_unified");
       }
     } else {
-      // Mensaje de bienvenida inicial
       setMessages([
         {
           id: "welcome",
           sender: "agent",
-          text: "¡Hola! Soy tu **Agente de Almacén Inteligente**. Puedo responder preguntas sobre el stock de repuestos, precios, OEM, ubicación en pasillos y marcas de inmediato leyendo la base de datos local. ¿En qué pieza o código estás interesado hoy?",
+          text: "¡Hola! Soy tu **Asistente Virtual con IA**. Estoy conectado en tiempo real con la base de datos de **Repuestos La Paz**.\n\nPuedo ayudarte a buscar repuestos, comprobar stock, analizar ventas, revisar compras, gestionar clientes y mucho más en lenguaje natural. ¿Qué te gustaría consultar hoy?",
           timestamp: new Date()
         }
       ]);
     }
   }, []);
 
-  // Guardar en localStorage
+  // Guardar historial unificado
   useEffect(() => {
     if (messages.length > 0) {
-      localStorage.setItem("ai_chat_history", JSON.stringify(messages));
+      localStorage.setItem("ai_chat_history_unified", JSON.stringify(messages));
     }
   }, [messages]);
 
+  // Guardar configuración
   useEffect(() => {
-    if (messages.length > 0) {
-      localStorage.setItem(getWorkflowHistoryKey(activeWorkflowId), JSON.stringify(messages));
-    }
-  }, [activeWorkflowId, messages]);
-
-  useEffect(() => {
-    localStorage.setItem("ai_active_workflow", activeWorkflowId);
+    localStorage.setItem("ai_active_topic", activeTopicId);
     localStorage.setItem("ai_n8n_url", n8nUrl);
-  }, [activeWorkflowId, n8nUrl]);
+  }, [activeTopicId, n8nUrl]);
 
-  // Auto-scroll al final
+  // Auto-scroll al final del chat
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
@@ -181,7 +160,7 @@ export const ChatAgentFeature: React.FC = () => {
     setLoading(true);
 
     try {
-      // Petición al webhook del agente en n8n
+      // Petición al endpoint intermedio del backend para evitar problemas de CORS
       const response = await fetch(n8nUrl, {
         method: "POST",
         headers: {
@@ -189,45 +168,51 @@ export const ChatAgentFeature: React.FC = () => {
         },
         body: JSON.stringify({
           chatInput: userMsg.text,
-          sessionId: `dashboard-${activeWorkflowId}`,
-          module: activeWorkflowId
+          sessionId: "web-session-general",
+          module: activeTopicId
         }),
       });
 
       if (!response.ok) {
-        throw new Error("No se pudo conectar con el Agente de n8n. Revisa si n8n está activo y si la URL del webhook es la correcta.");
+        throw new Error(`Error de conexión (Código ${response.status}): ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as unknown;
       
-      // n8n Chat Trigger suele retornar { output: "texto" } o un array con { output: "texto" }
       let replyText = "";
-      if (data && typeof data.output === "string") {
-        replyText = data.output;
-      } else if (Array.isArray(data) && data[0] && typeof data[0].output === "string") {
-        replyText = data[0].output;
-      } else if (data && typeof data.response === "string") {
-        replyText = data.response;
+      if (data && typeof data === "object") {
+        const obj = data as Record<string, unknown>;
+        if (typeof obj.output === "string") {
+          replyText = obj.output;
+        } else if (typeof obj.response === "string") {
+          replyText = obj.response;
+        } else if (Array.isArray(data) && data[0] && typeof (data[0] as Record<string, unknown>).output === "string") {
+          replyText = (data[0] as Record<string, unknown>).output as string;
+        } else {
+          replyText = JSON.stringify(data);
+        }
+      } else if (typeof data === "string") {
+        replyText = data;
       } else {
-        replyText = typeof data === "string" ? data : JSON.stringify(data);
+        replyText = "El agente no devolvió ninguna respuesta estructurada.";
       }
 
       const agentMsg: Message = {
         id: `agent-${Date.now()}`,
         sender: "agent",
-        text: replyText || "El agente no devolvió ninguna respuesta estructurada.",
+        text: replyText,
         timestamp: new Date()
       };
 
       setMessages((prev) => [...prev, agentMsg]);
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "Error al comunicarse con n8n.");
+      toast.error(err.message || "Error al comunicarse con el orquestador.");
       
       setMessages((prev) => [...prev, {
         id: `agent-error-${Date.now()}`,
         sender: "agent",
-        text: `⚠️ **Error de Conexión:** No se pudo establecer contacto con el webhook de n8n en \`${n8nUrl}\`.\n\nPor favor, verifica lo siguiente:\n1. Que tu servidor de **n8n** esté encendido y el flujo del agente activo.\n2. Si el flujo está en modo diseño en n8n, usa la URL de pruebas (*Test Webhook*).\n3. Revisa la consola o configuración de red.`,
+        text: `⚠️ **Error de Conexión:** No se pudo establecer contacto con el agente de IA en \`${n8nUrl}\`.\n\nPor favor, verifica lo siguiente:\n1. Que el servidor de **n8n** esté activo y el webhook expuesto.\n2. Revisa que el backend del ERP esté corriendo correctamente.\n3. Si estás usando n8n localmente, comprueba el flujo de trabajo del enrutador.`,
         timestamp: new Date()
       }]);
     } finally {
@@ -237,35 +222,28 @@ export const ChatAgentFeature: React.FC = () => {
 
   const handleClearChat = () => {
     if (!confirm("¿Deseas vaciar el historial de conversación con el agente?")) return;
-    localStorage.removeItem(getWorkflowHistoryKey(activeWorkflowId));
+    localStorage.removeItem("ai_chat_history_unified");
     setMessages([
       {
         id: "welcome",
         sender: "agent",
-        text: `Historial limpiado. Flujo activo: **${activeWorkflow.label}**. ¿Qué quieres consultar?`,
+        text: "Historial limpiado. ¿Qué te gustaría consultar hoy?",
         timestamp: new Date()
       }
     ]);
   };
 
-  const handleWorkflowChange = (workflowId: string) => {
-    const nextWorkflow = WORKFLOW_OPTIONS.find((w) => w.id === workflowId);
-    if (!nextWorkflow) return;
-    localStorage.setItem(getWorkflowHistoryKey(activeWorkflowId), JSON.stringify(messages));
-    setActiveWorkflowId(nextWorkflow.id);
-    setN8nUrl(nextWorkflow.url);
-    const saved = parseStoredMessages(localStorage.getItem(getWorkflowHistoryKey(nextWorkflow.id)));
-    setMessages(saved || createWorkflowWelcome(nextWorkflow.id));
+  const handleSuggestionClick = (example: string) => {
+    setInputText(example);
+    inputRef.current?.focus();
   };
 
-  // Formateador simple de markdown a elementos React
+  // Formateador simple de markdown
   const parseMarkdown = (text: string) => {
     const lines = text.split("\n");
     return lines.map((line, idx) => {
-      // Tablas markdown simples
       if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
         const cells = line.split("|").map(c => c.trim()).filter((_, i, arr) => i > 0 && i < arr.length - 1);
-        // Evitar líneas separadoras de tabla
         if (cells.every(c => c.startsWith("-"))) return null;
         return (
           <div key={idx} className="flex border-b border-border/40 py-1 font-mono text-[10px] md:text-xs">
@@ -276,22 +254,17 @@ export const ChatAgentFeature: React.FC = () => {
         );
       }
 
-      // Reemplazo básico de **bold** y `code` en la línea
       let content: React.ReactNode = line;
-      
-      // Detectar viñeta
       const isBullet = line.trim().startsWith("-") || line.trim().startsWith("*");
       const cleanLine = isBullet ? line.trim().substring(1).trim() : line;
 
-      // Buscar **
       if (cleanLine.includes("**")) {
         const parts = cleanLine.split("**");
         content = parts.map((part, pIdx) => pIdx % 2 === 1 ? <strong key={pIdx} className="text-primary font-extrabold">{part}</strong> : part);
       }
 
-      // Buscar `
       if (cleanLine.includes("`")) {
-        const parts = cleanLine.split("`");
+        const parts = (cleanLine as string).split("`");
         content = parts.map((part, pIdx) => pIdx % 2 === 1 ? <code key={pIdx} className="bg-background border border-border px-1 py-0.5 rounded font-mono text-cyan-400 text-xs">{part}</code> : part);
       }
 
@@ -312,145 +285,197 @@ export const ChatAgentFeature: React.FC = () => {
   };
 
   return (
-    <div className="p-6 space-y-6 flex flex-col h-[calc(100vh-20px)]">
+    <div className="p-6 space-y-6 flex flex-col h-[calc(100vh-20px)] bg-zinc-950/20">
       {/* Cabecera del Agente */}
-      <div className="border-b border-border pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
+      <div className="border-b border-border/80 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
         <div>
-          <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
-            <Bot className="h-8 w-8 text-primary animate-pulse" />
-            Agente Inteligente de Almacén
+          <h1 className="text-2xl md:text-3xl font-extrabold text-foreground flex items-center gap-3 tracking-tight">
+            <Bot className="h-8 w-8 text-cyan-400 animate-pulse drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]" />
+            Asistente General con IA
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Asistente con IA que consulta stock crítico, ubicaciones y precios directamente en tu base de datos local.
+          <p className="text-sm text-muted-foreground mt-1 font-medium">
+            Consúltame sobre stock, ubicaciones, finanzas, clientes o compras en lenguaje natural.
           </p>
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-card border border-border text-[10px] uppercase font-bold text-muted-foreground">
-            <Database className="h-3.5 w-3.5 text-cyan-400" />
-            Port: 3000
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[10px] uppercase font-bold text-cyan-400">
+            <Database className="h-3.5 w-3.5" />
+            Conectado a PostgreSQL
           </div>
           <button
             onClick={handleClearChat}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-destructive/20 bg-destructive/5 hover:bg-destructive/10 text-destructive text-[10px] font-bold uppercase tracking-wider transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-destructive/20 bg-destructive/5 hover:bg-destructive/10 text-destructive text-[10px] font-bold uppercase tracking-wider transition-all hover:scale-[1.02] active:scale-[0.98]"
             title="Limpiar chat"
           >
             <Trash2 className="h-3.5 w-3.5" />
-            Limpiar Chat
+            Vaciar Chat
           </button>
         </div>
       </div>
 
-      {/* Configuración del Endpoint n8n Webhook */}
-      <div className="bg-card/75 border border-border/80 rounded-xl p-4 shrink-0 flex flex-col md:flex-row gap-3 items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <Cpu className="h-5 w-5 text-primary" />
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Webhook de n8n (Chat Trigger)</span>
-            <span className="text-[11px] font-mono text-foreground font-semibold">Configura el endpoint expuesto por n8n</span>
+      {/* Configuración Avanzada (Oculta por defecto) */}
+      <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-3 shrink-0">
+        <button
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="flex items-center justify-between w-full text-xs font-bold text-muted-foreground hover:text-foreground transition-colors uppercase tracking-wider"
+        >
+          <div className="flex items-center gap-2">
+            <Cpu className="h-4 w-4 text-cyan-500" />
+            <span>Configuración Avanzada del Agente</span>
+          </div>
+          {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </button>
+        {showAdvanced && (
+          <div className="mt-3 pt-3 border-t border-zinc-800 flex flex-col md:flex-row gap-3 items-center justify-between">
+            <div className="text-left w-full md:w-auto">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Ruta del Webhook / API Proxy</span>
+              <span className="text-[11px] font-mono text-zinc-400">Las consultas se intermediarán por esta ruta local</span>
+            </div>
+            <input
+              type="text"
+              value={n8nUrl}
+              onChange={(e) => setN8nUrl(e.target.value)}
+              className="flex-1 max-w-xl w-full rounded bg-zinc-950 border border-zinc-800 px-3 py-1.5 text-xs text-foreground font-mono focus:outline-none focus:border-cyan-500"
+              placeholder="/api/telegram/chat-agent"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Cuerpo Principal del Chat y Sugerencias */}
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-6">
+        
+        {/* Panel de Chat Principal */}
+        <div className="flex-1 min-h-0 bg-zinc-900/40 rounded-2xl border border-zinc-800/80 p-4 flex flex-col justify-between overflow-hidden shadow-inner relative">
+          <div className="flex-1 overflow-y-auto space-y-4 pr-1 pb-4">
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex items-start gap-3 max-w-[85%] ${
+                  msg.sender === "user" ? "ml-auto flex-row-reverse" : "mr-auto"
+                }`}
+              >
+                <div
+                  className={`h-8 w-8 rounded-lg flex items-center justify-center border shrink-0 ${
+                    msg.sender === "user"
+                      ? "bg-cyan-500/20 border-cyan-500/30 text-cyan-400"
+                      : "bg-emerald-500/20 border-emerald-500/30 text-emerald-400"
+                  }`}
+                >
+                  {msg.sender === "user" ? <Sparkles className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                </div>
+                <div
+                  className={`p-3.5 rounded-2xl border ${
+                    msg.sender === "user"
+                      ? "bg-cyan-950/10 border-cyan-500/10 rounded-tr-none text-foreground"
+                      : "bg-zinc-900/80 border-zinc-800 rounded-tl-none text-foreground shadow-lg"
+                  }`}
+                >
+                  <div className="space-y-1.5 select-text">
+                    {parseMarkdown(msg.text)}
+                  </div>
+                  <span className="block text-[8px] text-muted-foreground/60 mt-2 text-right font-mono font-medium">
+                    {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+              </div>
+            ))}
+
+            {/* Loading Indicator */}
+            {loading && (
+              <div className="flex items-start gap-3 max-w-[80%] mr-auto">
+                <div className="h-8 w-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0 animate-pulse">
+                  <Bot className="h-4 w-4" />
+                </div>
+                <div className="p-4 bg-zinc-900/30 border border-zinc-800 rounded-2xl rounded-tl-none text-foreground shadow-sm flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                  <span className="text-[10px] text-muted-foreground font-mono uppercase font-bold tracking-wider ml-1">Orquestando datos...</span>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Caja de Input de Texto */}
+          <form onSubmit={handleSendMessage} className="border-t border-zinc-800/60 pt-4 flex gap-2.5 shrink-0">
+            <input
+              type="text"
+              ref={inputRef}
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              disabled={loading}
+              placeholder="Escribe tu consulta en lenguaje natural al Asistente..."
+              className="flex-1 rounded-xl bg-zinc-950 border border-zinc-800 px-4 py-3 text-xs md:text-sm text-foreground focus:outline-none focus:border-cyan-500 disabled:opacity-50 transition-all font-medium"
+            />
+            <button
+              type="submit"
+              disabled={loading || !inputText.trim()}
+              className="bg-cyan-500 hover:bg-cyan-600 text-zinc-950 px-5 rounded-xl text-xs font-bold uppercase tracking-wider disabled:opacity-50 transition-all active:scale-[0.96] flex items-center justify-center gap-1.5 shadow-lg shadow-cyan-500/10"
+            >
+              <Send className="h-4 w-4" />
+              <span className="hidden sm:inline">Consultar</span>
+            </button>
+          </form>
+        </div>
+
+        {/* Panel Lateral: Atajos de Consulta y Categorías */}
+        <div className="w-full lg:w-80 shrink-0 flex flex-col gap-4">
+          <div className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-2xl flex-1 flex flex-col justify-between">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-cyan-400 border-b border-zinc-800 pb-2">
+                <Terminal className="h-4 w-4" />
+                <h2 className="text-xs font-bold uppercase tracking-wider">Atajos de Consulta</h2>
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Selecciona una sección del ERP para explorar y cargar ejemplos sugeridos de consultas con lenguaje natural:
+              </p>
+
+              {/* Lista de Categorías */}
+              <div className="space-y-1.5 max-h-56 lg:max-h-none overflow-y-auto pr-1">
+                {WORKFLOW_OPTIONS.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTopicId(item.id)}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left border transition-all hover:scale-[1.01] active:scale-[0.99] ${
+                      activeTopicId === item.id
+                        ? "bg-cyan-500/10 border-cyan-500/40 text-cyan-400 shadow-sm shadow-cyan-500/5"
+                        : "bg-zinc-950 border-zinc-800 text-muted-foreground hover:border-zinc-700 hover:text-foreground"
+                    }`}
+                  >
+                    <div>
+                      <span className="text-[11px] font-bold tracking-tight block">{item.label}</span>
+                      <span className="text-[9px] opacity-75 font-normal line-clamp-1 mt-0.5">{item.description}</span>
+                    </div>
+                    <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${activeTopicId === item.id ? "rotate-90 text-cyan-400" : "opacity-40"}`} />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Ejemplos de la Categoría Activa */}
+            <div className="border-t border-zinc-800/80 pt-4 mt-4 space-y-2.5">
+              <span className="text-[9px] uppercase font-bold tracking-wider text-muted-foreground flex items-center gap-1">
+                <HelpCircle className="h-3 w-3 text-cyan-400" />
+                Preguntas sugeridas ({activeTopic.label}):
+              </span>
+              <div className="space-y-2">
+                {activeTopic.examples.map((example, eIdx) => (
+                  <button
+                    key={eIdx}
+                    onClick={() => handleSuggestionClick(example)}
+                    className="w-full text-left bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-cyan-500/30 p-2.5 rounded-lg text-[10px] text-zinc-300 hover:text-cyan-300 transition-all leading-snug cursor-pointer flex items-start gap-1.5 group active:scale-[0.98]"
+                  >
+                    <MessageSquare className="h-3 w-3 text-muted-foreground mt-0.5 group-hover:text-cyan-400 shrink-0" />
+                    <span>{example}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
-        <input
-          type="text"
-          value={n8nUrl}
-          onChange={(e) => setN8nUrl(e.target.value)}
-          className="flex-1 max-w-xl w-full rounded bg-input border border-border px-3 py-1.5 text-xs text-foreground font-mono focus:outline-none focus:border-primary"
-          placeholder="http://localhost:5678/webhook/..."
-        />
-      </div>
 
-      <div className="grid shrink-0 gap-2 md:grid-cols-2 xl:grid-cols-4">
-        {WORKFLOW_OPTIONS.map((workflow) => (
-          <button
-            key={workflow.id}
-            type="button"
-            onClick={() => handleWorkflowChange(workflow.id)}
-            className={`rounded-lg border p-3 text-left transition-all ${
-              activeWorkflowId === workflow.id
-                ? "border-primary bg-primary/10 text-foreground shadow-sm shadow-primary/10"
-                : "border-border bg-card/60 text-muted-foreground hover:border-primary/40 hover:text-foreground"
-            }`}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-black uppercase tracking-wider">{workflow.label}</span>
-              <span className={`h-2 w-2 rounded-full ${activeWorkflowId === workflow.id ? "bg-primary" : "bg-muted-foreground/40"}`} />
-            </div>
-            <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed">{workflow.description}</p>
-          </button>
-        ))}
-      </div>
-
-      {/* Ventana de Chat Principal */}
-      <div className="flex-1 min-h-0 bg-card/45 rounded-2xl border border-border p-4 flex flex-col justify-between overflow-hidden shadow-inner relative group">
-        <div className="flex-1 overflow-y-auto space-y-4 pr-1 pb-4">
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex items-start gap-3 max-w-[85%] ${
-                msg.sender === "user" ? "ml-auto flex-row-reverse" : "mr-auto"
-              }`}
-            >
-              <div
-                className={`h-8 w-8 rounded-lg flex items-center justify-center border shrink-0 ${
-                  msg.sender === "user"
-                    ? "bg-primary/20 border-primary text-primary"
-                    : "bg-cyan-500/20 border-cyan-400 text-cyan-400"
-                }`}
-              >
-                {msg.sender === "user" ? <Sparkles className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-              </div>
-              <div
-                className={`p-3.5 rounded-2xl border ${
-                  msg.sender === "user"
-                    ? "bg-primary/10 border-primary/20 rounded-tr-none text-foreground"
-                    : "bg-muted/30 border-border/60 rounded-tl-none text-foreground shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
-                }`}
-              >
-                <div className="space-y-1.5 select-text">
-                  {parseMarkdown(msg.text)}
-                </div>
-                <span className="block text-[8px] text-muted-foreground/80 mt-2 text-right font-mono font-medium">
-                  {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </span>
-              </div>
-            </div>
-          ))}
-
-          {/* Loading Indicator */}
-          {loading && (
-            <div className="flex items-start gap-3 max-w-[80%] mr-auto">
-              <div className="h-8 w-8 rounded-lg bg-cyan-500/20 border border-cyan-400 text-cyan-400 flex items-center justify-center shrink-0 animate-pulse">
-                <Bot className="h-4 w-4" />
-              </div>
-              <div className="p-4 bg-muted/20 border border-border/40 rounded-2xl rounded-tl-none text-foreground shadow-sm flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-                <span className="h-2 w-2 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-                <span className="h-2 w-2 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: "300ms" }} />
-                <span className="text-[10px] text-muted-foreground font-mono uppercase font-bold tracking-wider ml-1">IA pensando...</span>
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input Box */}
-        <form onSubmit={handleSendMessage} className="border-t border-border/50 pt-4 flex gap-2.5 shrink-0">
-          <input
-            type="text"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            disabled={loading}
-            placeholder={`Pregunta al flujo ${activeWorkflow.label}...`}
-            className="flex-1 rounded-xl bg-input border border-border px-4 py-3 text-xs md:text-sm text-foreground focus:outline-none focus:border-primary disabled:opacity-50 transition-all font-semibold"
-          />
-          <button
-            type="submit"
-            disabled={loading || !inputText.trim()}
-            className="bg-primary text-primary-foreground px-5 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-accent disabled:opacity-50 transition-all active:scale-[0.96] flex items-center justify-center gap-1.5 shadow-lg shadow-primary/10"
-          >
-            <Send className="h-4 w-4" />
-            <span className="hidden sm:inline">Enviar</span>
-          </button>
-        </form>
       </div>
     </div>
   );

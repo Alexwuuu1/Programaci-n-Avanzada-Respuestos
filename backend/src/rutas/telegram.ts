@@ -1164,3 +1164,38 @@ rutaTelegram.post("/webhook", async (req: Request, res: Response): Promise<void>
     res.status(500).json({ error: "Error interno al procesar el mensaje." });
   }
 });
+
+// 8. Canalizar peticiones del Agente Web al Orquestador Router (evita problemas de CORS)
+rutaTelegram.post("/chat-agent", async (req: Request, res: Response): Promise<void> => {
+  const { chatInput, sessionId, module } = req.body;
+
+  if (!chatInput) {
+    res.status(400).json({ error: "chatInput es requerido." });
+    return;
+  }
+
+  try {
+    const response = await fetch("http://host.docker.internal:5678/webhook/repuestos-router", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chatInput,
+        sessionId: sessionId || "web-general",
+        module: module || "general",
+      }),
+    });
+
+    if (!response.ok) {
+      res.status(response.status).json({ error: `Error del orquestador n8n: ${response.statusText}` });
+      return;
+    }
+
+    const data: unknown = await response.json();
+    res.json(data);
+  } catch (e: unknown) {
+    console.error("ERROR EN ROUTER CHAT AGENT:", e);
+    const errorMessage = e instanceof Error ? e.message : String(e);
+    res.status(500).json({ error: `No se pudo conectar con el orquestador n8n. Detalle: ${errorMessage}` });
+  }
+});
+
