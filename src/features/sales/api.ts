@@ -1,7 +1,7 @@
 import type { Cliente, Venta } from "./types";
 
-const CLIENTS_URL = "http://localhost:3000/api/clientes";
-const SALES_URL = "http://localhost:3000/api/ventas";
+const CLIENTS_URL = "/api/clientes";
+const SALES_URL = "/api/ventas";
 
 export const getClientes = async (): Promise<Cliente[]> => {
   const res = await fetch(CLIENTS_URL);
@@ -42,6 +42,10 @@ export const processSale = async (sale: {
   clientId?: string;
   items: Array<{ productId: string; quantity: number; priceUnit: number }>;
   username: string;
+  metodoPago: Venta["metodoPago"];
+  descuento?: number;
+  nroFactura?: string;
+  observaciones?: string;
 }): Promise<Venta> => {
   const res = await fetch(SALES_URL, {
     method: "POST",

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import type { UserSession } from "./features/auth/types";
+import { ToastContainer, toast } from "./components/ui/Toast";
 import { LoginView } from "./features/auth/components/LoginView";
 import { Sidebar } from "./components/layout/Sidebar";
 import { DashboardOverview } from "./features/dashboard/components/DashboardOverview";
@@ -11,6 +12,11 @@ import type { Product, Category } from "./features/products/types";
 import { ProductionFeature } from "./features/production/ProductionFeature";
 import { SalesFeature } from "./features/sales/SalesFeature";
 import { InventoryFeature } from "./features/inventory/InventoryFeature";
+import { PurchasesFeature } from "./features/purchases/PurchasesFeature";
+import { ClientsFeature } from "./features/clients/ClientsFeature";
+import { FinancesFeature } from "./features/finances/FinancesFeature";
+import { ProfileFeature } from "./features/profile/ProfileFeature";
+import { ChatAgentFeature } from "./features/ai_agent/ChatAgentFeature";
 
 function App() {
   const [session, setSession] = useState<UserSession | null>(null);
@@ -32,7 +38,7 @@ function App() {
   }, []);
 
   const reloadProducts = () => {
-    fetch("http://localhost:3000/api/productos")
+    fetch("/api/productos")
       .then((res) => {
         if (!res.ok) throw new Error();
         return res.json();
@@ -46,7 +52,7 @@ function App() {
     if (session) {
       reloadProducts();
 
-      fetch("http://localhost:3000/api/productos/categorias")
+      fetch("/api/productos/categorias")
         .then((res) => {
           if (!res.ok) throw new Error();
           return res.json();
@@ -60,6 +66,7 @@ function App() {
     localStorage.removeItem("userSession");
     setSession(null);
     setActiveTab("dashboard");
+    toast.success("Cierre de sesión exitoso. ¡Hasta pronto!");
   };
 
   // Renderizar la vista activa
@@ -68,7 +75,9 @@ function App() {
 
     switch (activeTab) {
       case "dashboard":
-        return <DashboardOverview session={session} />;
+        return <DashboardOverview session={session} onNavigate={setActiveTab} />;
+      case "clients":
+        return <ClientsFeature />;
       case "users":
         return session.role === "Admin" ? <UserManagement /> : <AccessDenied />;
       case "employees":
@@ -99,6 +108,20 @@ function App() {
         );
       case "inventory":
         return <InventoryFeature />;
+      case "finances":
+        return session.role === "Admin" ? <FinancesFeature /> : <AccessDenied />;
+      case "purchases":
+        return (
+          <PurchasesFeature 
+            products={products}
+            username={session.username}
+            onRefreshProducts={reloadProducts}
+          />
+        );
+      case "profile":
+        return <ProfileFeature session={session} />;
+      case "ai_agent":
+        return <ChatAgentFeature />;
       default:
         return <PlaceholderView tabName={activeTab} />;
     }
@@ -117,8 +140,11 @@ function App() {
         onLogout={handleLogout} 
       />
       <main className="flex-1 overflow-y-auto bg-background/50">
-        {renderContent()}
+        <div key={activeTab} className="h-full w-full animate-fadeIn">
+          {renderContent()}
+        </div>
       </main>
+      <ToastContainer />
     </div>
   );
 }

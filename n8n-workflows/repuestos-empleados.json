@@ -1,0 +1,198 @@
+{
+  "updatedAt": "2026-06-02T05:26:53.382Z",
+  "createdAt": "2026-06-02T05:26:53.382Z",
+  "id": "0aY7rFWH4Oqc2MIN",
+  "name": "Repuestos - Empleados",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "repuestos-empleados",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "76266252-bfa9-4591-8322-e895860c1368",
+      "name": "Webhook Empleados",
+      "webhookId": "repuestos-empleados"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:3000/api/empleados",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "1f56314c-195a-48d0-83ea-b40204328632",
+      "name": "API Empleados"
+    },
+    {
+      "parameters": {
+        "jsCode": "const empleados = Array.isArray($input.first().json) ? $input.first().json : [];\nconst pregunta = $('Webhook Empleados').item.json.body?.chatInput || '';\nconst activos = empleados.filter((e) => (e.status || e.estado || '').toLowerCase() === 'activo');\nconst porCargo = empleados.reduce((acc, e) => { const k = e.position || e.cargo || 'Sin cargo'; acc[k] = (acc[k] || 0) + 1; return acc; }, {});\nreturn [{ json: { pregunta, empleados, resumen: { total: empleados.length, activos: activos.length, porCargo } } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "id": "9a1e5cde-2e36-4a3e-871f-8598d2186139",
+      "name": "Preparar Empleados"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Eres Alejandro, operador web de personal/RRHH.\n\nConsulta: \"{{ $json.pregunta }}\"\n\nResumen real:\n{{ JSON.stringify($json.resumen) }}\n\nEmpleados:\n{{ JSON.stringify($json.empleados) }}\n\nReglas:\n- Responde solo sobre empleados, cargos, estado y personal.\n- No inventes datos.\n- No reveles salario, CI, direccion o datos sensibles salvo que el usuario lo pida explicitamente.\n- Si preguntan activos, cargos o resumen, usa el resumen real.\n- Si no entiendes, ofrece ejemplos: empleados activos, cargos, personal registrado.\n- Cierra con una pregunta breve."
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        720,
+        0
+      ],
+      "id": "877a3ede-5328-42fd-9be5-491013ebbc11",
+      "name": "Redactor Empleados"
+    },
+    {
+      "parameters": {
+        "model": "llama3.1:latest",
+        "options": {
+          "temperature": 0.2,
+          "numCtx": 8192,
+          "numPredict": 1200
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        720,
+        224
+      ],
+      "id": "d12b57cf-440a-4e98-908a-86993d19f246",
+      "name": "Ollama Redactor",
+      "credentials": {
+        "ollamaApi": {
+          "id": "IHCfquUorqzC2NC8",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json; return [{ json: { output: item.text || item.output || item.response || 'No pude generar una respuesta.' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        0
+      ],
+      "id": "3bdf12f8-174c-485e-a0a1-0b6e5e935140",
+      "name": "Formatear Respuesta Web"
+    }
+  ],
+  "connections": {
+    "Webhook Empleados": {
+      "main": [
+        [
+          {
+            "node": "API Empleados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API Empleados": {
+      "main": [
+        [
+          {
+            "node": "Preparar Empleados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Empleados": {
+      "main": [
+        [
+          {
+            "node": "Redactor Empleados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactor Empleados": {
+      "main": [
+        [
+          {
+            "node": "Formatear Respuesta Web",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Redactor": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Redactor Empleados",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "588e021e-40eb-4f78-b4bf-104f9243cae0",
+  "activeVersionId": "588e021e-40eb-4f78-b4bf-104f9243cae0",
+  "versionCounter": 36,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-06-02T05:26:53.384Z",
+      "createdAt": "2026-06-02T05:26:53.384Z",
+      "role": "workflow:owner",
+      "workflowId": "0aY7rFWH4Oqc2MIN",
+      "projectId": "ZxDGhDESpUv8wW1t",
+      "project": {
+        "updatedAt": "2026-05-20T00:38:37.774Z",
+        "createdAt": "2026-05-20T00:37:31.302Z",
+        "id": "ZxDGhDESpUv8wW1t",
+        "name": "Alejandro Villalpando <aleu9393@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "9a5782e9-61e6-4a90-8580-de39c63840f7"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": "Version 588e021e",
+    "description": ""
+  }
+}

@@ -1,6 +1,6 @@
 import type { ProductionOrder } from "./types";
 
-const BASE_URL = "http://localhost:3000/api/produccion";
+const BASE_URL = "/api/produccion";
 
 export const getProductionOrders = async (): Promise<ProductionOrder[]> => {
   const res = await fetch(BASE_URL);
@@ -15,6 +15,9 @@ export const createProductionOrder = async (order: {
   productId: string;
   quantity: number;
   responsibleId?: string;
+  prioridad?: ProductionOrder["prioridad"];
+  costoProduccion?: number;
+  observaciones?: string;
 }): Promise<ProductionOrder> => {
   const res = await fetch(BASE_URL, {
     method: "POST",
@@ -30,12 +33,13 @@ export const createProductionOrder = async (order: {
 
 export const updateOrderStatus = async (
   id: string,
-  status: "Pendiente" | "En Proceso" | "Finalizado" | "Cancelado"
+  status: "Pendiente" | "En Proceso" | "Finalizado" | "Cancelado",
+  cantidadProducida?: number
 ): Promise<ProductionOrder> => {
   const res = await fetch(`${BASE_URL}/${id}/estado`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, cantidadProducida }),
   });
   if (!res.ok) {
     const err = await res.json();

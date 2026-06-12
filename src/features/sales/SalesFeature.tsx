@@ -5,6 +5,7 @@ import { SaleForm } from "./components/SaleForm";
 import { SaleHistory } from "./components/SaleHistory";
 import { getClientes, saveCliente, getVentas, processSale } from "./api";
 import { FileSpreadsheet, History, AlertCircle } from "lucide-react";
+import { toast } from "../../components/ui/Toast";
 
 interface SalesFeatureProps {
   products: Product[];
@@ -47,12 +48,20 @@ export const SalesFeature: React.FC<SalesFeatureProps> = ({
     try {
       const created = await saveCliente(clienteData);
       setClientes([created, ...clientes]);
+      toast.success("¡Cliente registrado exitosamente!");
     } catch (e: any) {
-      alert(e.message || "Error al registrar el cliente.");
+      toast.error(e.message || "Error al registrar el cliente.");
     }
   };
 
-  const handleProcessSale = async (saleData: { clientId?: string; items: any[] }) => {
+  const handleProcessSale = async (saleData: {
+    clientId?: string;
+    items: any[];
+    metodoPago: Venta["metodoPago"];
+    descuento?: number;
+    nroFactura?: string;
+    observaciones?: string;
+  }) => {
     try {
       const payload = {
         clientId: saleData.clientId,
@@ -62,15 +71,19 @@ export const SalesFeature: React.FC<SalesFeatureProps> = ({
           quantity: i.quantity,
           priceUnit: i.priceUnit,
         })),
+        metodoPago: saleData.metodoPago,
+        descuento: saleData.descuento,
+        nroFactura: saleData.nroFactura,
+        observaciones: saleData.observaciones,
       };
 
       const createdSale = await processSale(payload);
       setSales([createdSale, ...sales]);
       onRefreshProducts(); // Actualizar stock de repuestos en el catálogo
       setActiveTab("history");
-      alert("¡Venta procesada con éxito!");
+      toast.success("¡Venta procesada con éxito!");
     } catch (e: any) {
-      alert(e.message || "Error al procesar la venta.");
+      toast.error(e.message || "Error al procesar la venta.");
     }
   };
 

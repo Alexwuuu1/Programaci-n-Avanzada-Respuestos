@@ -1,0 +1,207 @@
+{
+  "name": "Agente Progra Repuestos",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "repuestos-chat-v2",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-80, 80],
+      "id": "f8ad241c-d8c1-4631-a76c-7f2c63dbacc9",
+      "name": "Webhook",
+      "webhookId": "3829a0f0-c6fd-462f-a505-9002abc58829"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = String($json.body?.chatInput || '').trim();\nconst normalize = (value) => value\n  .normalize('NFD')\n  .replace(/[\\u0300-\\u036f]/g, '')\n  .toLowerCase();\n\nconst text = normalize(input);\nconst hasAny = (words) => words.some((word) => text.includes(word));\nlet output = '';\n\nif (!text || text.length < 2) {\n  output = '__HELP__';\n} else if (hasAny(['venta', 'vendimos', 'vendido', 'facturacion', 'boleta', 'ingreso por venta', 'historial de venta'])) {\n  output = '__SALES__';\n} else if (hasAny(['caja', 'finanza', 'ganancia', 'utilidad', 'egreso', 'ingreso', 'cuentas por cobrar', 'flujo de caja'])) {\n  output = '__FINANCE__';\n} else if (hasAny(['cliente', 'crm', 'deudor', 'premium', 'frecuente', 'cartera'])) {\n  output = '__CLIENTS__';\n} else if (hasAny(['compra', 'proveedor', 'pedido', 'abastecimiento', 'recepcion'])) {\n  output = '__PURCHASES__';\n} else if (hasAny(['produccion', 'fabrica', 'torneria', 'orden de produccion', 'lote'])) {\n  output = '__PRODUCTION__';\n} else if (hasAny(['empleado', 'personal', 'operario', 'vendedor', 'turno'])) {\n  output = '__EMPLOYEES__';\n} else if (hasAny(['usuario', 'rol', 'permiso', 'acceso'])) {\n  output = '__USERS__';\n} else if (hasAny(['dashboard', 'panel', 'kpi', 'indicador', 'estado general', 'situacion actual', 'resumen del sistema'])) {\n  output = '__DASHBOARD__';\n} else if (hasAny(['stock bajo', 'stock critico', 'por agotarse', 'agotarse', 'critico', 'alerta'])) {\n  output = '__INVENTORY_LOW__';\n} else if (hasAny(['que repuestos tenemos', 'cuantos repuestos', 'inventario general', 'catalogo', 'productos disponibles', 'lista de productos', 'que inventario', 'repuestos tenemos', 'stock general'])) {\n  output = '__ALL__';\n} else if (/^(hola|buenas|buen dia|buenas tardes|buenas noches|como estas|que tal|gracias|ok|dale|chau|adios)\\b/.test(text)) {\n  output = '__CHAT__';\n} else if (hasAny(['que puedes hacer', 'ayuda', 'no entiendo', 'como te uso', 'que te puedo preguntar'])) {\n  output = '__HELP__';\n} else {\n  const stop = new Set(['tienes', 'tenes', 'hay', 'precio', 'donde', 'esta', 'ubicacion', 'stock', 'repuesto', 'repuestos', 'para', 'del', 'de', 'la', 'el', 'los', 'las', 'un', 'una', 'que', 'cual', 'cuanto', 'cuantos', 'compatible', 'compatibles']);\n  const terms = text\n    .replace(/[^a-z0-9+.-]+/g, ' ')\n    .split(/\\s+/)\n    .filter((term) => term.length >= 2 && !stop.has(term))\n    .slice(0, 6);\n  output = terms.length ? terms.join(' ') : '__HELP__';\n}\n\nreturn [{ json: { text: output, originalInput: input } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [160, 0],
+      "id": "2bbdb422-f848-40f3-a6cb-c36d37c2472f",
+      "name": "Extractor de Palabras Clave"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:3000/api/inventario/stock-query",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.text || $json.output || $('Webhook').item.json.body.chatInput }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [448, 0],
+      "id": "ab6602b1-2648-48dd-ad37-c0761c1e7e9d",
+      "name": "HTTP Request (Postgres API)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst repuestos = [];\nlet totalProductos = 0;\nlet totalUnidades = 0;\nconst pregunta = $('Webhook').item.json.body.chatInput || '';\nconst consulta = String($('Extractor de Palabras Clave').item.json.text || $('Extractor de Palabras Clave').item.json.output || '').trim();\n\nfor (const item of items) {\n  if (Array.isArray(item.json)) {\n    repuestos.push(...item.json);\n  } else if (Array.isArray(item.json?.repuestos)) {\n    repuestos.push(...item.json.repuestos);\n    totalProductos = Number(item.json.totalProductos || 0);\n    totalUnidades = Number(item.json.totalUnidades || 0);\n  } else if (item.json && Object.keys(item.json).length > 0 && !item.json.repuestos) {\n    repuestos.push(item.json);\n  }\n}\n\nconst consultaNormalizada = consulta.toUpperCase();\nconst mapa = {\n  '__CHAT__': 'chat',\n  '__HELP__': 'ayuda',\n  '__DASHBOARD__': 'dashboard',\n  '__ALL__': 'inventario_general',\n  '__INVENTORY_ALL__': 'inventario_general',\n  '__INVENTORY_LOW__': 'inventario_bajo',\n  '__SALES__': 'ventas',\n  '__FINANCE__': 'finanzas',\n  '__CLIENTS__': 'clientes',\n  '__PURCHASES__': 'compras',\n  '__PRODUCTION__': 'produccion',\n  '__EMPLOYEES__': 'empleados',\n  '__USERS__': 'usuarios'\n};\nconst tipoConsulta = mapa[consultaNormalizada] || 'busqueda_especifica';\n\nreturn [{\n  json: {\n    pregunta,\n    consulta,\n    tipoConsulta,\n    repuestos,\n    totalProductos,\n    totalUnidades\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, 0],
+      "id": "23052069-b0a1-4cf4-af99-8c0b754c9a06",
+      "name": "Validar Resultados"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Eres Alejandro, operador web profesional de un sistema de gestion de repuestos automotrices en Bolivia.\n\nTu estilo:\n- Amable, directo, util y seguro.\n- Hablas como operador real de mostrador, almacen y administracion.\n- No inventas productos, precios, ventas, caja, clientes ni stock.\n- No muestres al usuario textos internos como tipoConsulta, palabras clave o etiquetas __SALES__.\n- Si un modulo aun no esta conectado a este flujo de n8n, dilo claramente.\n\nConsulta original:\n\"{{ $json.pregunta }}\"\n\nTipo interno: {{ $json.tipoConsulta }}\nConsulta interna: {{ $json.consulta }}\n\nResumen real del inventario:\n- Total productos activos: {{ $json.totalProductos || 0 }}\n- Total unidades en stock: {{ $json.totalUnidades || 0 }}\n\nResultados reales desde PostgreSQL:\n{{ JSON.stringify($json.repuestos) }}\n\nReglas:\n1. Si tipoConsulta es \"chat\": responde natural y breve. Ofrece ayudar con inventario, precios, ubicaciones, ventas, caja, clientes, compras o produccion.\n2. Si tipoConsulta es \"ayuda\": di que no entendiste bien y ofrece ejemplos:\n   - tienes bujia bosch?\n   - precio de FR7KPP33U+\n   - donde esta el filtro de aceite Hilux?\n   - que repuestos tenemos?\n   - dime nuestras ventas actuales\n   - como esta la caja?\n   - clientes con deuda\n   - compras pendientes\n3. Si tipoConsulta es \"dashboard\": responde que puedes ayudar con el estado general, pero este flujo todavia no tiene conectado el endpoint del dashboard en n8n.\n4. Si tipoConsulta es \"ventas\": responde que ventas esta reconocido, pero este flujo todavia no tiene conectado el endpoint de ventas. Di que cuando se conecte podras mostrar ventas de hoy, total vendido, historial y metodos de pago.\n5. Si tipoConsulta es \"finanzas\": responde que caja/finanzas esta reconocido, pero este flujo todavia no tiene conectado el endpoint financiero. Di que cuando se conecte podras mostrar caja, ingresos, egresos, utilidad y cuentas por cobrar.\n6. Si tipoConsulta es \"clientes\": responde que CRM/clientes esta reconocido, pero este flujo todavia no tiene conectado el endpoint de clientes.\n7. Si tipoConsulta es \"compras\": responde que compras/proveedores esta reconocido, pero este flujo todavia no tiene conectado el endpoint de compras.\n8. Si tipoConsulta es \"produccion\": responde que produccion esta reconocida, pero este flujo todavia no tiene conectado el endpoint de produccion.\n9. Si tipoConsulta es \"empleados\": responde que empleados esta reconocido, pero este flujo todavia no tiene conectado el endpoint de empleados.\n10. Si tipoConsulta es \"usuarios\": responde que usuarios/roles esta reconocido, pero este flujo todavia no tiene conectado el endpoint de usuarios.\n11. Si tipoConsulta es \"inventario_general\": responde con total de productos activos, total de unidades y una lista resumida de maximo 10 repuestos principales.\n12. Si tipoConsulta es \"inventario_bajo\": si hay resultados, menciona productos con stock bajo. Si no hay filtro real conectado, indica que falta una consulta especifica de stock critico.\n13. Si tipoConsulta es \"busqueda_especifica\" y hay resultados: lista nombre, OEM, marca, precio en Bs., ubicacion fisica, compatibilidad y stock.\n14. Si tipoConsulta es \"busqueda_especifica\" y no hay resultados: di que no encontraste coincidencias claras y pide OEM, marca, modelo del vehiculo, categoria o nombre alternativo.\n15. Si stock <= stockMinimo, advierte stock bajo.\n16. Si stock es 0, indica agotado.\n17. Formatea precios como Bs. 1.250,00 cuando sea posible.\n18. Cierra siempre con una pregunta breve para seguir ayudando."
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [848, 0],
+      "id": "8a3146fa-2345-4991-ace2-7125b641c629",
+      "name": "Redactor Alejandro"
+    },
+    {
+      "parameters": {
+        "model": "llama3.1:latest",
+        "options": {
+          "temperature": 0.3,
+          "numCtx": 8192,
+          "numPredict": 2048
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [752, 224],
+      "id": "570c0dd5-7dff-42f2-8973-29d4da5e609d",
+      "name": "Ollama Redactor",
+      "credentials": {
+        "ollamaApi": {
+          "id": "IHCfquUorqzC2NC8",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook').item.json.body.sessionId || 'dashboard-session' }}",
+        "contextWindowLength": 8
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.2,
+      "position": [976, 224],
+      "id": "9444406a-cbc7-43a3-9fb6-e273759f2b71",
+      "name": "Memoria de Chat"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst output = item.text || item.output || item.response || 'No pude generar una respuesta en este momento.';\n\nreturn [{\n  json: {\n    output\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1152, 0],
+      "id": "9f7ed442-a7f9-47df-9656-9db79d454307",
+      "name": "Formatear Respuesta Web"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extractor de Palabras Clave",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extractor de Palabras Clave": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Postgres API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Postgres API)": {
+      "main": [
+        [
+          {
+            "node": "Validar Resultados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Resultados": {
+      "main": [
+        [
+          {
+            "node": "Redactor Alejandro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactor Alejandro": {
+      "main": [
+        [
+          {
+            "node": "Formatear Respuesta Web",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Redactor": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Redactor Alejandro",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memoria de Chat": {
+      "ai_memory": [
+        [
+          {
+            "node": "Redactor Alejandro",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Respuesta Web": {
+      "main": [[]]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-06-01T00:00:00.000Z",
+  "versionId": "agente-progra-repuestos-v1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

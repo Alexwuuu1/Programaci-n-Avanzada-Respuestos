@@ -1,0 +1,198 @@
+{
+  "updatedAt": "2026-06-02T05:26:27.542Z",
+  "createdAt": "2026-06-02T05:26:27.542Z",
+  "id": "Zh6PlnDkN0zZukhT",
+  "name": "Repuestos - Compras",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "repuestos-compras",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "be6385a7-985a-4742-8247-ab456be927f5",
+      "name": "Webhook Compras",
+      "webhookId": "repuestos-compras"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:3000/api/compras",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "deaab7f6-7df9-489f-9f95-9412507c382f",
+      "name": "API Compras"
+    },
+    {
+      "parameters": {
+        "jsCode": "const compras = Array.isArray($input.first().json) ? $input.first().json : [];\nconst pregunta = $('Webhook Compras').item.json.body?.chatInput || '';\nconst pendientes = compras.filter((c) => c.status === 'Pendiente');\nconst recibidas = compras.filter((c) => c.status === 'Recibido');\nconst canceladas = compras.filter((c) => c.status === 'Cancelado');\nconst totalPendiente = pendientes.reduce((s, c) => s + Number(c.total || 0), 0);\nconst totalRecibido = recibidas.reduce((s, c) => s + Number(c.total || 0), 0);\nreturn [{ json: { pregunta, compras: compras.slice(0, 50), pendientes, resumen: { total: compras.length, pendientes: pendientes.length, recibidas: recibidas.length, canceladas: canceladas.length, totalPendiente, totalRecibido } } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "id": "998f1607-610c-444e-b5dc-76539d8151c8",
+      "name": "Preparar Compras"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Eres Alejandro, operador web de compras y proveedores.\n\nConsulta: \"{{ $json.pregunta }}\"\n\nResumen real:\n{{ JSON.stringify($json.resumen) }}\n\nCompras recientes:\n{{ JSON.stringify($json.compras) }}\n\nPedidos pendientes:\n{{ JSON.stringify($json.pendientes) }}\n\nReglas:\n- Responde solo sobre compras, pedidos a proveedor, recepciones y abastecimiento.\n- No inventes datos.\n- Formatea importes en Bs.\n- Si preguntan pendientes, lista proveedor, fecha, total, referencia y productos.\n- Si preguntan recibidas, resume compras recibidas recientes.\n- Si no entiendes, ofrece ejemplos: compras pendientes, pedidos recibidos, total comprometido, ultimo pedido.\n- Cierra con una pregunta breve."
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        720,
+        0
+      ],
+      "id": "76b74487-d470-4b6c-ae03-c6545ce782f8",
+      "name": "Redactor Compras"
+    },
+    {
+      "parameters": {
+        "model": "llama3.1:latest",
+        "options": {
+          "temperature": 0.2,
+          "numCtx": 8192,
+          "numPredict": 1400
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        720,
+        224
+      ],
+      "id": "a2ff9233-057b-4c6a-bd52-45128167bcbe",
+      "name": "Ollama Redactor",
+      "credentials": {
+        "ollamaApi": {
+          "id": "IHCfquUorqzC2NC8",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json; return [{ json: { output: item.text || item.output || item.response || 'No pude generar una respuesta.' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        0
+      ],
+      "id": "d2fa7916-a200-4170-bfc2-f57879c4d494",
+      "name": "Formatear Respuesta Web"
+    }
+  ],
+  "connections": {
+    "Webhook Compras": {
+      "main": [
+        [
+          {
+            "node": "API Compras",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API Compras": {
+      "main": [
+        [
+          {
+            "node": "Preparar Compras",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Compras": {
+      "main": [
+        [
+          {
+            "node": "Redactor Compras",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactor Compras": {
+      "main": [
+        [
+          {
+            "node": "Formatear Respuesta Web",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Redactor": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Redactor Compras",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "af0a68fb-1a84-43fa-9beb-1326ddf78be9",
+  "activeVersionId": "af0a68fb-1a84-43fa-9beb-1326ddf78be9",
+  "versionCounter": 36,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-06-02T05:26:27.544Z",
+      "createdAt": "2026-06-02T05:26:27.544Z",
+      "role": "workflow:owner",
+      "workflowId": "Zh6PlnDkN0zZukhT",
+      "projectId": "ZxDGhDESpUv8wW1t",
+      "project": {
+        "updatedAt": "2026-05-20T00:38:37.774Z",
+        "createdAt": "2026-05-20T00:37:31.302Z",
+        "id": "ZxDGhDESpUv8wW1t",
+        "name": "Alejandro Villalpando <aleu9393@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "9a5782e9-61e6-4a90-8580-de39c63840f7"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": "Version af0a68fb",
+    "description": ""
+  }
+}

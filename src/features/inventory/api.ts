@@ -1,6 +1,6 @@
 import type { InventoryMovement } from "./types";
 
-const BASE_URL = "http://localhost:3000/api/inventario";
+const BASE_URL = "/api/inventario";
 
 export const getInventoryMovements = async (): Promise<InventoryMovement[]> => {
   const res = await fetch(`${BASE_URL}/movimientos`);

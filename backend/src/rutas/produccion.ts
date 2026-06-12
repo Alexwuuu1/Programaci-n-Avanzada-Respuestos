@@ -27,6 +27,10 @@ rutaProduccion.get("/", async (req: Request, res: Response) => {
       status: o.estado as "Pendiente" | "En Proceso" | "Finalizado" | "Cancelado",
       responsibleId: o.responsableId ? String(o.responsableId) : undefined,
       responsibleName: o.responsable ? o.responsable.nombre : "Sin Asignar",
+      cantidadProducida: o.cantidadProducida ?? undefined,
+      prioridad: o.prioridad,
+      costoProduccion: o.costoProduccion != null ? Number(o.costoProduccion) : undefined,
+      observaciones: o.observaciones ?? undefined,
     }));
 
     res.json(mapped);
@@ -38,7 +42,7 @@ rutaProduccion.get("/", async (req: Request, res: Response) => {
 
 // 2. Crear nueva orden de producción
 rutaProduccion.post("/", async (req: Request, res: Response): Promise<void> => {
-  const { productId, quantity, responsibleId } = req.body;
+  const { productId, quantity, responsibleId, prioridad, costoProduccion, observaciones } = req.body;
 
   if (!productId || !quantity || Number(quantity) <= 0) {
     res.status(400).json({ error: "Datos de orden incompletos o inválidos." });
@@ -52,6 +56,9 @@ rutaProduccion.post("/", async (req: Request, res: Response): Promise<void> => {
         cantidad: Number(quantity),
         responsableId: responsibleId ? Number(responsibleId) : null,
         estado: "Pendiente",
+        ...(prioridad && { prioridad: String(prioridad) }),
+        ...(costoProduccion != null && { costoProduccion: Number(costoProduccion) }),
+        ...(observaciones && { observaciones: String(observaciones) }),
       },
       include: {
         producto: true,
@@ -70,6 +77,10 @@ rutaProduccion.post("/", async (req: Request, res: Response): Promise<void> => {
       status: "Pendiente",
       responsibleId: created.responsableId ? String(created.responsableId) : undefined,
       responsibleName: created.responsable ? created.responsable.nombre : "Sin Asignar",
+      cantidadProducida: created.cantidadProducida ?? undefined,
+      prioridad: created.prioridad,
+      costoProduccion: created.costoProduccion != null ? Number(created.costoProduccion) : undefined,
+      observaciones: created.observaciones ?? undefined,
     });
   } catch (e) {
     console.error(e);
@@ -80,7 +91,7 @@ rutaProduccion.post("/", async (req: Request, res: Response): Promise<void> => {
 // 3. Actualizar estado de una orden (Flujo con transacción Prisma)
 rutaProduccion.put("/:id/estado", async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, cantidadProducida } = req.body;
 
   const validStatuses = ["Pendiente", "En Proceso", "Finalizado", "Cancelado"];
   if (!status || !validStatuses.includes(status)) {
@@ -117,6 +128,7 @@ rutaProduccion.put("/:id/estado", async (req: Request, res: Response): Promise<v
           data: {
             estado: "Finalizado",
             fechaFin: new Date(),
+            ...(cantidadProducida != null && { cantidadProducida: Number(cantidadProducida) }),
           },
           include: {
             producto: true,
@@ -124,22 +136,25 @@ rutaProduccion.put("/:id/estado", async (req: Request, res: Response): Promise<v
           },
         });
 
-        // b. Incrementar el stock del repuesto
+        // Cantidad real fabricada (fallback a planeada si no se indica)
+        const finalQty = order.cantidadProducida != null ? order.cantidadProducida : order.cantidad;
+
+        // b. Incrementar el stock del repuesto con la cantidad REAL producida
         await tx.producto.update({
           where: { id: order.productoId },
           data: {
             stock: {
-              increment: order.cantidad,
+              increment: finalQty,
             },
           },
         });
 
-        // c. Registrar movimiento de trazabilidad
+        // c. Registrar movimiento de trazabilidad con la cantidad REAL
         await tx.movimientoInventario.create({
           data: {
             productoId: order.productoId,
             tipoMovimiento: "Entrada",
-            cantidad: order.cantidad,
+            cantidad: finalQty,
             motivo: `Producción Orden #${order.id}`,
             usuarioId: null, // Sistema / Automático
           },
@@ -185,6 +200,10 @@ rutaProduccion.put("/:id/estado", async (req: Request, res: Response): Promise<v
       status: updatedOrder.estado as "Pendiente" | "En Proceso" | "Finalizado" | "Cancelado",
       responsibleId: updatedOrder.responsableId ? String(updatedOrder.responsableId) : undefined,
       responsibleName: updatedOrder.responsable ? updatedOrder.responsable.nombre : "Sin Asignar",
+      cantidadProducida: updatedOrder.cantidadProducida ?? undefined,
+      prioridad: updatedOrder.prioridad,
+      costoProduccion: updatedOrder.costoProduccion != null ? Number(updatedOrder.costoProduccion) : undefined,
+      observaciones: updatedOrder.observaciones ?? undefined,
     });
   } catch (e) {
     console.error(e);

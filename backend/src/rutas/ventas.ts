@@ -26,6 +26,11 @@ rutaVentas.get("/", async (req: Request, res: Response) => {
       sellerName: v.usuario?.empleado?.nombre || v.usuario?.usuario || "Sistema",
       date: v.fecha.toISOString(),
       total: Number(v.total),
+      descuento: v.descuento != null ? Number(v.descuento) : undefined,
+      metodoPago: v.metodoPago,
+      nroFactura: v.nroFactura ?? undefined,
+      observaciones: v.observaciones ?? undefined,
+      estado: v.estado,
       items: v.detalles.map((d) => ({
         id: String(d.id),
         productId: String(d.productoId),
@@ -46,7 +51,7 @@ rutaVentas.get("/", async (req: Request, res: Response) => {
 
 // 2. Procesar una venta (Con transacción Prisma)
 rutaVentas.post("/", async (req: Request, res: Response): Promise<void> => {
-  const { clientId, items, username } = req.body;
+  const { clientId, items, username, metodoPago, descuento, observaciones, nroFactura } = req.body;
 
   if (!items || !Array.isArray(items) || items.length === 0 || !username) {
     res.status(400).json({ error: "Datos de venta incompletos (requiere items y usuario)." });
@@ -102,6 +107,10 @@ rutaVentas.post("/", async (req: Request, res: Response): Promise<void> => {
           clienteId: clientId ? Number(clientId) : null,
           usuarioId: dbUser.id,
           total: totalAmount,
+          ...(descuento != null && { descuento: Number(descuento) }),
+          ...(metodoPago && { metodoPago: String(metodoPago) }),
+          ...(nroFactura && { nroFactura: String(nroFactura) }),
+          ...(observaciones && { observaciones: String(observaciones) }),
         },
         include: {
           cliente: true,
@@ -152,6 +161,11 @@ rutaVentas.post("/", async (req: Request, res: Response): Promise<void> => {
       sellerName: dbUser.empleado?.nombre || dbUser.usuario,
       date: result.saleHeader.fecha.toISOString(),
       total: Number(result.saleHeader.total),
+      descuento: result.saleHeader.descuento != null ? Number(result.saleHeader.descuento) : undefined,
+      metodoPago: result.saleHeader.metodoPago,
+      nroFactura: result.saleHeader.nroFactura ?? undefined,
+      observaciones: result.saleHeader.observaciones ?? undefined,
+      estado: result.saleHeader.estado,
       items: result.verifiedItems.map((item) => ({
         productId: String(item.productId),
         productName: item.name,

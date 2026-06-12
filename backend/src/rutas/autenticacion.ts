@@ -25,6 +25,18 @@ rutaAutenticacion.post("/login", async (req: Request, res: Response): Promise<vo
       return;
     }
 
+    // Bloquear usuarios inactivos
+    if (dbUser.estado === "Inactivo") {
+      res.status(403).json({ error: "Su cuenta ha sido desactivada. Contacte al administrador." });
+      return;
+    }
+
+    // Registrar último acceso
+    await prisma.usuario.update({
+      where: { id: dbUser.id },
+      data: { ultimoAcceso: new Date() },
+    });
+
     res.json({
       username: dbUser.usuario,
       role: dbUser.rol.nombre,
@@ -35,3 +47,4 @@ rutaAutenticacion.post("/login", async (req: Request, res: Response): Promise<vo
     res.status(500).json({ error: "Error en el servidor de base de datos." });
   }
 });
+

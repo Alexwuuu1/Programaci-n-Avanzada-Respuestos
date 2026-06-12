@@ -1,0 +1,198 @@
+{
+  "updatedAt": "2026-06-02T05:25:53.706Z",
+  "createdAt": "2026-06-02T05:25:53.706Z",
+  "id": "Sd4DvUKMbqHJU6H0",
+  "name": "Repuestos - Finanzas",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "repuestos-finanzas",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e842820f-9e84-41f8-a6ff-0ea56853d802",
+      "name": "Webhook Finanzas",
+      "webhookId": "repuestos-finanzas"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:3000/api/finanzas/flujo-caja",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "089891bb-9e63-4912-8396-fb8d0453cf60",
+      "name": "API Finanzas"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json || {};\nconst pregunta = $('Webhook Finanzas').item.json.body?.chatInput || '';\nreturn [{ json: { pregunta, finanzas: data, resumen: data.summary || {}, flujo: Array.isArray(data.flowHistory) ? data.flowHistory : [] } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "id": "9cde5f33-df6b-44e9-a401-303dec3c9d2f",
+      "name": "Preparar Finanzas"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Eres Alejandro, operador web de caja y finanzas.\n\nConsulta: \"{{ $json.pregunta }}\"\n\nResumen financiero real:\n{{ JSON.stringify($json.resumen) }}\n\nFlujo ultimos 30 dias:\n{{ JSON.stringify($json.flujo) }}\n\nReglas:\n- Responde solo sobre caja, ingresos, egresos, cuentas por cobrar, utilidad y flujo de caja.\n- No inventes datos.\n- Formatea importes en Bs.\n- Explica caja en mano, ingresos, egresos y cuentas por cobrar si aplica.\n- Si preguntan tendencia, usa el flujo de 30 dias.\n- Si no entiendes, ofrece ejemplos: como esta la caja, ingresos 30 dias, egresos, cuentas por cobrar.\n- Cierra con una pregunta breve."
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        720,
+        0
+      ],
+      "id": "62988cca-5d2d-44a2-9de9-ed95ee1bcb61",
+      "name": "Redactor Finanzas"
+    },
+    {
+      "parameters": {
+        "model": "llama3.1:latest",
+        "options": {
+          "temperature": 0.2,
+          "numCtx": 8192,
+          "numPredict": 1400
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        720,
+        224
+      ],
+      "id": "aeadff28-f35c-48df-824b-c17531bdfdce",
+      "name": "Ollama Redactor",
+      "credentials": {
+        "ollamaApi": {
+          "id": "IHCfquUorqzC2NC8",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json; return [{ json: { output: item.text || item.output || item.response || 'No pude generar una respuesta.' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        0
+      ],
+      "id": "80277be7-5b72-4e7b-981f-b572d2c95263",
+      "name": "Formatear Respuesta Web"
+    }
+  ],
+  "connections": {
+    "Webhook Finanzas": {
+      "main": [
+        [
+          {
+            "node": "API Finanzas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API Finanzas": {
+      "main": [
+        [
+          {
+            "node": "Preparar Finanzas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Finanzas": {
+      "main": [
+        [
+          {
+            "node": "Redactor Finanzas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactor Finanzas": {
+      "main": [
+        [
+          {
+            "node": "Formatear Respuesta Web",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Redactor": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Redactor Finanzas",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "c393f1a4-bcd4-4438-b79d-98d6cb918491",
+  "activeVersionId": "c393f1a4-bcd4-4438-b79d-98d6cb918491",
+  "versionCounter": 36,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-06-02T05:25:53.707Z",
+      "createdAt": "2026-06-02T05:25:53.707Z",
+      "role": "workflow:owner",
+      "workflowId": "Sd4DvUKMbqHJU6H0",
+      "projectId": "ZxDGhDESpUv8wW1t",
+      "project": {
+        "updatedAt": "2026-05-20T00:38:37.774Z",
+        "createdAt": "2026-05-20T00:37:31.302Z",
+        "id": "ZxDGhDESpUv8wW1t",
+        "name": "Alejandro Villalpando <aleu9393@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "9a5782e9-61e6-4a90-8580-de39c63840f7"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": "Version c393f1a4",
+    "description": ""
+  }
+}

@@ -11,20 +11,31 @@ model Role {
   id          Int       @id @default(autoincrement())
   nombre      String    @unique @db.VarChar(50)
   descripcion String?   @db.VarChar(255)
+  permisos    String?   @db.Text
+  color       String?   @db.VarChar(20)
   usuarios    Usuario[]
 
   @@map("roles")
 }
 
 model Empleado {
-  id         Int                 @id @default(autoincrement())
-  nombre     String              @db.VarChar(100)
-  telefono   String              @db.VarChar(20)
-  cargo      String              @db.VarChar(100)
-  estado     String              @default("Activo") @db.VarChar(20)
-  creadoEn   DateTime            @default(now()) @map("creado_en")
-  usuario    Usuario?
-  produccion OrdenProduccion[]
+  id                  Int                 @id @default(autoincrement())
+  nombre              String              @db.VarChar(100)
+  ci                  String?             @db.VarChar(20)
+  email               String?             @db.VarChar(150)
+  telefono            String              @db.VarChar(20)
+  direccion           String?             @db.Text
+  cargo               String              @db.VarChar(100)
+  turno               String?             @db.VarChar(30)
+  salario             Decimal?            @db.Decimal(10, 2)
+  fechaNacimiento     DateTime?           @map("fecha_nacimiento") @db.Date
+  fechaContratacion   DateTime?           @map("fecha_contratacion") @db.Date
+  contactoEmergencia  String?             @map("contacto_emergencia") @db.VarChar(150)
+  notas               String?             @db.Text
+  estado              String              @default("Activo") @db.VarChar(20)
+  creadoEn            DateTime            @default(now()) @map("creado_en")
+  usuario             Usuario?
+  produccion          OrdenProduccion[]
 
   @@map("empleados")
 }
@@ -33,6 +44,9 @@ model Usuario {
   id                 Int                 @id @default(autoincrement())
   usuario            String              @unique @db.VarChar(50)
   contrasena         String              @db.VarChar(255)
+  email              String?             @db.VarChar(150)
+  estado             String              @default("Activo") @db.VarChar(20)
+  ultimoAcceso       DateTime?           @map("ultimo_acceso")
   rolId              Int                 @map("rol_id")
   empleadoId         Int?                @unique @map("empleado_id")
   creadoEn           DateTime            @default(now()) @map("creado_en")
@@ -47,21 +61,33 @@ model Usuario {
 }
 
 model Categoria {
-  id        Int        @id @default(autoincrement())
-  nombre    String     @unique @db.VarChar(100)
-  productos Producto[]
+  id          Int        @id @default(autoincrement())
+  nombre      String     @unique @db.VarChar(100)
+  descripcion String?    @db.Text
+  icono       String?    @db.VarChar(50)
+  color       String?    @db.VarChar(20)
+  orden       Int?
+  productos   Producto[]
 
   @@map("categorias")
 }
 
 model Proveedor {
-  id        Int               @id @default(autoincrement())
-  nombre    String            @unique @db.VarChar(150)
-  telefono  String            @db.VarChar(20)
-  direccion String?           @db.Text
-  creadoEn  DateTime          @default(now()) @map("creado_en")
-  productos Producto[]
-  pedidos   PedidoProveedor[]
+  id                  Int               @id @default(autoincrement())
+  nombre              String            @unique @db.VarChar(150)
+  nit                 String?           @db.VarChar(30)
+  email               String?           @db.VarChar(150)
+  telefono            String            @db.VarChar(20)
+  telefonoSecundario  String?           @map("telefono_secundario") @db.VarChar(20)
+  contactoPrincipal   String?           @map("contacto_principal") @db.VarChar(100)
+  direccion           String?           @db.Text
+  condicionesPago     String?           @map("condiciones_pago") @db.VarChar(100)
+  calificacion        Int?
+  notas               String?           @db.Text
+  estado              String            @default("Activo") @db.VarChar(20)
+  creadoEn            DateTime          @default(now()) @map("creado_en")
+  productos           Producto[]
+  pedidos             PedidoProveedor[]
 
   @@map("proveedores")
 }
@@ -70,10 +96,18 @@ model Producto {
   id             Int                    @id @default(autoincrement())
   oem            String                 @unique @db.VarChar(50)
   nombre         String                 @db.VarChar(150)
+  marca          String?                @db.VarChar(100)
   categoriaId    Int                    @map("categoria_id")
   precio         Decimal                @db.Decimal(10, 2)
+  precioCompra   Decimal?               @map("precio_compra") @db.Decimal(10, 2)
   stock          Int                    @default(0)
+  stockMinimo    Int                    @default(5) @map("stock_minimo")
+  ubicacion      String?                @db.VarChar(50)
+  peso           Decimal?               @db.Decimal(8, 3)
   compatibilidad String                 @db.Text
+  imagen         String?                @db.VarChar(500)
+  notas          String?                @db.Text
+  estado         String                 @default("Activo") @db.VarChar(20)
   proveedorId    Int?                   @map("proveedor_id")
   creadoEn       DateTime               @default(now()) @map("creado_en")
   
@@ -88,26 +122,41 @@ model Producto {
 }
 
 model Cliente {
-  id        Int      @id @default(autoincrement())
-  nombre    String   @db.VarChar(150)
-  telefono  String?  @db.VarChar(20)
-  direccion String?  @db.Text
-  creadoEn  DateTime @default(now()) @map("creado_en")
-  ventas    Venta[]
+  id                   Int      @id @default(autoincrement())
+  nombre               String   @db.VarChar(150)
+  nit                  String?  @db.VarChar(30)
+  email                String?  @db.VarChar(150)
+  telefono             String?  @db.VarChar(20)
+  direccion            String?  @db.Text
+  tipo                 String   @default("Particular") @db.VarChar(30)
+  vehiculos            String?  @db.Text
+  nivelFidelidad       String   @default("Nuevo") @map("nivel_fidelidad") @db.VarChar(20)
+  descuentoPorcentaje  Decimal? @map("descuento_porcentaje") @db.Decimal(5, 2)
+  limiteCredito        Decimal? @map("limite_credito") @db.Decimal(10, 2)
+  notas                String?  @db.Text
+  estado               String   @default("Activo") @db.VarChar(20)
+  creadoEn             DateTime @default(now()) @map("creado_en")
+  ventas               Venta[]
 
   @@map("clientes")
 }
 
 model Venta {
-  id        Int            @id @default(autoincrement())
-  clienteId Int?           @map("cliente_id")
-  usuarioId Int?           @map("usuario_id")
-  fecha     DateTime       @default(now())
-  total     Decimal        @default(0.00) @db.Decimal(10, 2)
+  id            Int            @id @default(autoincrement())
+  clienteId     Int?           @map("cliente_id")
+  usuarioId     Int?           @map("usuario_id")
+  fecha         DateTime       @default(now())
+  total         Decimal        @default(0.00) @db.Decimal(10, 2)
+  descuento     Decimal?       @db.Decimal(10, 2)
+  metodoPago    String         @default("Efectivo") @map("metodo_pago") @db.VarChar(30)
+  nroFactura    String?        @map("nro_factura") @db.VarChar(30)
+  observaciones String?        @db.Text
+  estado        String         @default("Completada") @db.VarChar(20)
   
-  cliente   Cliente?       @relation(fields: [clienteId], references: [id], onDelete: Restrict)
-  usuario   Usuario?       @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
-  detalles  DetalleVenta[]
+  cliente       Cliente?       @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  usuario       Usuario?       @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  detalles      DetalleVenta[]
+  abonos        AbonoCredito[]
 
   @@map("ventas")
 }
@@ -126,16 +175,20 @@ model DetalleVenta {
 }
 
 model PedidoProveedor {
-  id          Int                      @id @default(autoincrement())
-  proveedorId Int                      @map("proveedor_id")
-  usuarioId   Int                      @map("usuario_id")
-  fecha       DateTime                 @default(now())
-  estado      String                   @default("Pendiente") @db.VarChar(20)
-  total       Decimal                  @default(0.00) @db.Decimal(10, 2)
+  id                    Int                      @id @default(autoincrement())
+  proveedorId           Int                      @map("proveedor_id")
+  usuarioId             Int                      @map("usuario_id")
+  fecha                 DateTime                 @default(now())
+  fechaEntregaEstimada  DateTime?                @map("fecha_entrega_estimada") @db.Date
+  fechaRecepcion        DateTime?                @map("fecha_recepcion")
+  nroReferencia         String?                  @map("nro_referencia") @db.VarChar(50)
+  estado                String                   @default("Pendiente") @db.VarChar(20)
+  total                 Decimal                  @default(0.00) @db.Decimal(10, 2)
+  observaciones         String?                  @db.Text
   
-  proveedor   Proveedor                @relation(fields: [proveedorId], references: [id], onDelete: Restrict)
-  usuario     Usuario                  @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
-  detalles    DetallePedidoProveedor[]
+  proveedor             Proveedor                @relation(fields: [proveedorId], references: [id], onDelete: Restrict)
+  usuario               Usuario                  @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  detalles              DetallePedidoProveedor[]
 
   @@map("pedidos_proveedor")
 }
@@ -169,16 +222,34 @@ model MovimientoInventario {
 }
 
 model OrdenProduccion {
-  id            Int       @id @default(autoincrement())
-  productoId    Int       @map("producto_id")
-  cantidad      Int
-  fechaInicio   DateTime  @default(now()) @map("fecha_inicio")
-  fechaFin      DateTime? @map("fecha_fin")
-  estado        String    @default("Pendiente") @db.VarChar(30)
-  responsableId Int?      @map("responsable_id")
+  id                Int       @id @default(autoincrement())
+  productoId        Int       @map("producto_id")
+  cantidad          Int
+  cantidadProducida Int?      @map("cantidad_producida")
+  prioridad         String    @default("Media") @db.VarChar(20)
+  costoProduccion   Decimal?  @map("costo_produccion") @db.Decimal(10, 2)
+  observaciones     String?   @db.Text
+  fechaInicio       DateTime  @default(now()) @map("fecha_inicio")
+  fechaFin          DateTime? @map("fecha_fin")
+  estado            String    @default("Pendiente") @db.VarChar(30)
+  responsableId     Int?      @map("responsable_id")
   
-  producto      Producto  @relation(fields: [productoId], references: [id], onDelete: Restrict)
-  responsable   Empleado? @relation(fields: [responsableId], references: [id], onDelete: SetNull)
+  producto          Producto  @relation(fields: [productoId], references: [id], onDelete: Restrict)
+  responsable       Empleado? @relation(fields: [responsableId], references: [id], onDelete: SetNull)
 
   @@map("ordenes_produccion")
+}
+
+model AbonoCredito {
+  id          Int      @id @default(autoincrement())
+  ventaId     Int      @map("venta_id")
+  monto       Decimal  @db.Decimal(10, 2)
+  fecha       DateTime @default(now())
+  metodoPago  String   @map("metodo_pago") @db.VarChar(30)
+  comprobante String?  @map("comprobante") @db.VarChar(100)
+  notas       String?  @db.Text
+  
+  venta       Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+
+  @@map("abonos_credito")
 }

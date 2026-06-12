@@ -1,0 +1,252 @@
+{
+  "updatedAt": "2026-05-20T01:19:56.513Z",
+  "createdAt": "2026-05-20T00:41:49.229Z",
+  "id": "sager-agente-auditor-inventario",
+  "name": "agente_laravel",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "7fca1d50-83c3-410f-87ec-18e02b79d0f6",
+      "name": "When chat message received",
+      "type": "@n8n/n8n-nodes-langchain.manualChatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        160,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal/api/v1/analiticas",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "2ddbd7b3-783a-487b-95fe-091971757db0",
+      "name": "HTTP Request - Consultar API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        432,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analiza estos datos reales del inventario SAGER y responde solo en JSON estricto.\\n\\nDatos recibidos desde la API Laravel:\\n{{ JSON.stringify($json) }}",
+        "options": {
+          "systemMessage": "Eres un Auditor de Sistemas Avanzado especializado en inventarios de infraestructura de red para SAGER.\n\nDebes analizar los datos recibidos desde la API Laravel y responder de acuerdo con la intención del usuario, pero respetando siempre las reglas del sistema.\n\nDATOS DISPONIBLES:\n- total_productos\n- valor_total_inventario\n- alertas_criticas\n- nombre, stock y precio de cada producto crítico\n\nREGLAS OBLIGATORIAS:\n- Si alertas_criticas tiene productos, prioridad debe ser \"critico\".\n- Si alertas_criticas está vacío, prioridad debe ser \"info\".\n- Menciona siempre el valor total del inventario en Bolivianos.\n- Menciona el riesgo operativo.\n- Da una recomendación breve.\n- No inventes datos ni productos.\n- Si hay muchos productos críticos, menciona los 3 más urgentes y el total de productos críticos.\n- Ajusta el tono según la petición del usuario: alerta urgente, diagnóstico ejecutivo, resumen técnico o comunicado breve.\n\nResponde únicamente en JSON estricto:\n{\n  \"mensaje\": \"Mensaje breve, profesional y adaptado a la pregunta del usuario\",\n  \"prioridad\": \"critico o info\"\n}"
+        }
+      },
+      "id": "577eb8cd-a935-4677-aeb7-1eb9cfd3abb6",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        720,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "maxOutputTokens": 1024,
+          "temperature": 0.1
+        }
+      },
+      "id": "b8b2afdf-f85e-44cd-8b28-20108b09db3a",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        672,
+        560
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "SXDV6z9NpRIMKwgo",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const analytics = $('HTTP Request - Consultar API').first().json;\nconst raw = $json.output ?? $json.text ?? $json.response ?? $json.message ?? $json;\n\nfunction buildDeterministicMessage(data) {\n  const alertas = Array.isArray(data.alertas_criticas) ? data.alertas_criticas : [];\n  const valor = Number(data.valor_total_inventario || 0).toFixed(2);\n\n  if (alertas.length > 0) {\n    const productos = alertas\n      .map((producto) => `${producto.nombre} (${producto.stock} unidades)`)\n      .join(', ');\n\n    return {\n      mensaje: `Inventario valorizado en Bs ${valor}. Diagnostico critico: stock bajo en ${productos}. Reposicion prioritaria requerida.`,\n      prioridad: 'critico',\n    };\n  }\n\n  return {\n    mensaje: `Inventario valorizado en Bs ${valor}. Diagnostico informativo: no existen productos con stock critico.`,\n    prioridad: 'info',\n  };\n}\n\nlet payload = raw;\n\nif (typeof payload === 'string') {\n  payload = payload\n    .replace(/```json/gi, '')\n    .replace(/```/g, '')\n    .trim();\n\n  try {\n    payload = JSON.parse(payload);\n  } catch (error) {\n    payload = null;\n  }\n}\n\nif (!payload || typeof payload !== 'object' || !payload.mensaje || !['critico', 'info'].includes(payload.prioridad)) {\n  payload = buildDeterministicMessage(analytics);\n}\n\nreturn [\n  {\n    json: {\n      mensaje: payload.mensaje,\n      prioridad: payload.prioridad,\n    },\n  },\n];"
+      },
+      "id": "17930c2e-8d03-4f21-82ff-eb692d00a5cb",
+      "name": "Code in JavaScript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal/api/comunicado",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "mensaje",
+              "value": "={{ $json.mensaje }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "8ab6b440-82e4-4b5d-a1e7-dc77ce6d27c2",
+      "name": "HTTP Request - Enviar alerta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1296,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "content": "Agente conectado a Laravel:\\n\\n1. Chat dispara el flujo.\\n2. HTTP Request consulta /api/v1/analiticas.\\n3. AI Agent con Gemini audita los datos.\\n4. JavaScript valida JSON y reconstruye una respuesta segura si el LLM devuelve texto incompleto.\\n5. HTTP Request publica /api/comunicado.",
+        "height": 260,
+        "width": 380,
+        "color": 4
+      },
+      "id": "92f3310d-0eed-491e-af29-d4ad27908d9b",
+      "name": "Notas del Agente",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -832,
+        -304
+      ]
+    }
+  ],
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Consultar API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Consultar API": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Enviar alerta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "f0176479-8cf6-4560-a9bd-df91f51bc797",
+  "activeVersionId": null,
+  "versionCounter": 9,
+  "triggerCount": 0,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-05-20T00:41:49.234Z",
+      "createdAt": "2026-05-20T00:41:49.234Z",
+      "role": "workflow:owner",
+      "workflowId": "sager-agente-auditor-inventario",
+      "projectId": "ZxDGhDESpUv8wW1t",
+      "project": {
+        "updatedAt": "2026-05-20T00:38:37.774Z",
+        "createdAt": "2026-05-20T00:37:31.302Z",
+        "id": "ZxDGhDESpUv8wW1t",
+        "name": "Alejandro Villalpando <aleu9393@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "9a5782e9-61e6-4a90-8580-de39c63840f7"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": null,
+    "description": null
+  }
+}

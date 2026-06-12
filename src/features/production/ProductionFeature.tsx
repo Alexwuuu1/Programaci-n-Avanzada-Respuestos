@@ -5,6 +5,7 @@ import { OrderList } from "./components/OrderList";
 import { OrderForm } from "./components/OrderForm";
 import { getProductionOrders, createProductionOrder, updateOrderStatus } from "./api";
 import { AlertCircle } from "lucide-react";
+import { toast } from "../../components/ui/Toast";
 
 interface ProductionFeatureProps {
   products: Product[];
@@ -43,30 +44,40 @@ export const ProductionFeature: React.FC<ProductionFeatureProps> = ({
     productId: string;
     quantity: number;
     responsibleId?: string;
+    prioridad?: ProductionOrder["prioridad"];
+    costoProduccion?: number;
+    observaciones?: string;
   }) => {
     try {
       const created = await createProductionOrder(orderData);
       setOrders([created, ...orders]);
       setSubView("list");
+      toast.success("¡Orden de producción creada!");
     } catch (e: any) {
-      alert(e.message || "Error al crear la orden.");
+      toast.error(e.message || "Error al crear la orden.");
     }
   };
 
   const handleStatusChange = async (
     id: string,
-    status: "Pendiente" | "En Proceso" | "Finalizado" | "Cancelado"
+    status: "Pendiente" | "En Proceso" | "Finalizado" | "Cancelado",
+    cantidadProducida?: number
   ) => {
     try {
-      const updated = await updateOrderStatus(id, status);
+      const updated = await updateOrderStatus(id, status, cantidadProducida);
       setOrders(orders.map((o) => (o.id === id ? updated : o)));
 
       // Si la orden finalizó, refrescar el stock de repuestos en el estado global
       if (status === "Finalizado") {
         onRefreshProducts();
+        toast.success("¡Lote finalizado e ingresado al inventario!");
+      } else if (status === "En Proceso") {
+        toast.info("Fabricación en proceso. Torno activo.");
+      } else if (status === "Cancelado") {
+        toast.warning("Orden de producción cancelada.");
       }
     } catch (e: any) {
-      alert(e.message || "Error al actualizar la orden.");
+      toast.error(e.message || "Error al actualizar la orden.");
     }
   };
 

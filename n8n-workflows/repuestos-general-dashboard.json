@@ -1,0 +1,198 @@
+{
+  "updatedAt": "2026-06-02T05:27:27.346Z",
+  "createdAt": "2026-06-02T05:27:27.346Z",
+  "id": "7I5IQq4tK1iBRuQx",
+  "name": "Repuestos - General Dashboard",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "repuestos-chat-v2",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b3d494e3-5960-4872-8e86-38d986ff6825",
+      "name": "Webhook General",
+      "webhookId": "repuestos-chat-v2"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:3000/api/dashboard/kpis",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "a5d13528-4e99-420e-8180-45218b95ce7c",
+      "name": "API Dashboard"
+    },
+    {
+      "parameters": {
+        "jsCode": "const dashboard = $input.first().json || {};\nconst pregunta = $('Webhook General').item.json.body?.chatInput || '';\nreturn [{ json: { pregunta, dashboard } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "id": "eb42f593-9faf-4bdc-a623-b64f3c17be01",
+      "name": "Preparar Dashboard"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Eres Alejandro, operador web general del sistema de repuestos.\n\nConsulta: \"{{ $json.pregunta }}\"\n\nDatos reales del dashboard:\n{{ JSON.stringify($json.dashboard) }}\n\nReglas:\n- Responde sobre estado general del negocio usando solo los datos del dashboard.\n- Resume ingresos de hoy, utilidad, stock critico, produccion activa, ventas/metodos/top productos si existen.\n- No inventes datos.\n- Formatea importes en Bs.\n- Si el usuario pregunta algo muy especifico de otro modulo, sugiere usar el flujo especifico correspondiente.\n- Cierra con una pregunta breve."
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        720,
+        0
+      ],
+      "id": "69a65e43-996d-4a61-b408-89dfb76c73f3",
+      "name": "Redactor General"
+    },
+    {
+      "parameters": {
+        "model": "llama3.1:latest",
+        "options": {
+          "temperature": 0.2,
+          "numCtx": 8192,
+          "numPredict": 1400
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        720,
+        224
+      ],
+      "id": "af61503d-957e-4348-aaeb-91a2c7dd2952",
+      "name": "Ollama Redactor",
+      "credentials": {
+        "ollamaApi": {
+          "id": "IHCfquUorqzC2NC8",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json; return [{ json: { output: item.text || item.output || item.response || 'No pude generar una respuesta.' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        0
+      ],
+      "id": "07adda81-b3f1-4bac-8c66-da40fbbd0723",
+      "name": "Formatear Respuesta Web"
+    }
+  ],
+  "connections": {
+    "Webhook General": {
+      "main": [
+        [
+          {
+            "node": "API Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API Dashboard": {
+      "main": [
+        [
+          {
+            "node": "Preparar Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Dashboard": {
+      "main": [
+        [
+          {
+            "node": "Redactor General",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactor General": {
+      "main": [
+        [
+          {
+            "node": "Formatear Respuesta Web",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Redactor": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Redactor General",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "a01649d5-b91f-4b4c-af72-cc8a0a81099a",
+  "activeVersionId": "a01649d5-b91f-4b4c-af72-cc8a0a81099a",
+  "versionCounter": 36,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-06-02T05:27:27.347Z",
+      "createdAt": "2026-06-02T05:27:27.347Z",
+      "role": "workflow:owner",
+      "workflowId": "7I5IQq4tK1iBRuQx",
+      "projectId": "ZxDGhDESpUv8wW1t",
+      "project": {
+        "updatedAt": "2026-05-20T00:38:37.774Z",
+        "createdAt": "2026-05-20T00:37:31.302Z",
+        "id": "ZxDGhDESpUv8wW1t",
+        "name": "Alejandro Villalpando <aleu9393@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "9a5782e9-61e6-4a90-8580-de39c63840f7"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": "Version a01649d5",
+    "description": ""
+  }
+}

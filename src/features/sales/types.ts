@@ -3,6 +3,11 @@ export interface Cliente {
   name: string;
   phone: string;
   address: string;
+  nit?: string | null;
+  email?: string | null;
+  tipo?: string;
+  nivelFidelidad?: string;
+  descuentoPorcentaje?: number | null;
 }
 
 export interface SaleItem {
@@ -21,5 +26,10 @@ export interface Venta {
   sellerName: string;
   date: string;
   total: number;
+  descuento?: number;
+  metodoPago: "Efectivo" | "Transferencia" | "QR" | "Tarjeta" | "Credito";
+  nroFactura?: string;
+  observaciones?: string;
+  estado?: "Completada" | "Anulada";
   items: SaleItem[];
 }

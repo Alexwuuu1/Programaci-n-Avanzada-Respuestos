@@ -1,61 +1,62 @@
-# Plan de Implementación - Fase 8: Dashboard en Tiempo Real + Kardex (Trazabilidad)
+# Plan de Implementación - Fase 16: Reportes y Exportación Integrada (Excel + PDF) en Todos los Módulos
 
-Este plan detalla la conexión de las métricas del panel de inicio con datos reales agregados de PostgreSQL y la implementación del Kardex (historial de movimientos de stock) para auditar las entradas por producción y salidas por ventas.
+Este plan detalla la creación de un sistema de reportes integrado en cada pantalla. Se implementará una utilidad genérica para descargar datos filtrados en formato Excel (CSV con UTF-8 BOM compatible) y otra para inyectar hojas de estilo A4 para imprimir reportes consolidados en PDF de forma nativa desde cualquier módulo.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> *   **Integración del Kardex (Trazabilidad)**: Habilitaremos la pestaña `"Trazabilidad Stock"` para visualizar la auditoría de inventarios. Cada vez que ocurra una venta (Salida) o se complete una orden de producción (Entrada), el Kardex reflejará la transacción automáticamente, asociando el OEM, cantidad, fecha y usuario/responsable del movimiento.
-> *   **Cálculo de KPI en Servidor**: El servidor calculará dinámicamente:
->     1. Suma de ingresos por ventas registradas hoy.
->     2. Stock total acumulado en planta (repuestos físicos).
->     3. Cantidad de repuestos actualmente en torno/fundición (órdenes pendientes/en proceso).
->     4. Repuestos críticos bajo el umbral de alerta (stock <= 5 unidades).
+> *   **Integración en Tablas de Módulos**: Agregaremos un grupo de botones estilizados (`"Exportar Excel"`, `"Imprimir Reporte A4"`) en las siguientes secciones, respetando los filtros de búsqueda y estados activos:
+>     1. **Catálogo de Repuestos**: Inventario actual filtrado, valor total y alertas de stock.
+>     2. **CRM Clientes**: Directorio de clientes con sus deudas vigentes y total de compras acumuladas.
+>     3. **Historial de Ventas**: Ventas filtradas por rango de fechas, cliente o método de pago.
+>     4. **Trazabilidad de Stock (Kardex)**: Historial completo de movimientos de inventario.
+>     5. **Compras**: Pedidos vigentes e históricos hechos a proveedores.
+>     6. **Producción**: Estado de órdenes de fundición/torno activas e históricas.
+> *   **Mecanismo de Exportación a Excel (Cero Librerías)**:
+>     - Crearemos una utilidad cliente `exportarAExcel(nombreArchivo, columnas, datos)` que genera un archivo CSV con codificación UTF-8 y marca BOM (`\uFEFF`), asegurando compatibilidad nativa e inmediata con Microsoft Excel y Google Sheets (manteniendo tildes, caracteres especiales como "Ñ" y formato numérico).
+> *   **Motor de Impresión PDF de Reportes**:
+>     - Desarrollaremos una utilidad `imprimirReporteA4(titulo, columnas, datos, filtrosAplicados)` que generará una página A4 con un membrete formal corporativo, metadatos del reporte, tabla estructurada de datos y pie de página con firmas y fecha/hora de emisión.
 
 ## Proposed Changes
 
-### Backend API (`/backend`)
+### Utilidades de Reportes (`/src/utils`)
 
-#### [NEW] [dashboard.ts](file:///c:/Users/Alexwuuu1/Documents/Proyecto%20programacion/backend/src/rutas/dashboard.ts)
-*   `GET /kpis`: Agrega y retorna:
-    - `ventasHoy` (Bs. total acumulado hoy)
-    - `stockTotal` (Suma física de todos los productos)
-    - `ordenesActivas` (Conteo de órdenes de producción pendientes o en proceso)
-    - `alertasStock` (Conteo de repuestos con stock <= 5)
-    - `actividadReciente` (Lista de las últimas 5 ventas y órdenes para mostrar en el feed de novedades).
+#### [NEW] [exportUtils.ts](file:///c:/Users/Ale/Documents/Proyecto%20Programacion/src/utils/exportUtils.ts)
+*   Implementar `exportarAExcel(filename, headers, keys, data)` para construir el archivo CSV delimitado por comas con BOM para compatibilidad con Excel.
 
-#### [NEW] [inventario.ts](file:///c:/Users/Alexwuuu1/Documents/Proyecto%20programacion/backend/src/rutas/inventario.ts)
-*   `GET /movimientos`: Retorna el historial de movimientos de stock (`movimientos_inventario`), ordenado por fecha descendente, incluyendo repuestos y usuarios implicados.
-
-#### [MODIFY] [server.ts](file:///c:/Users/Alexwuuu1/Documents/Proyecto%20programacion/backend/src/server.ts)
-*   Registrar `/api/dashboard` y `/api/inventario`.
+#### [MODIFY] [printUtils.ts](file:///c:/Users/Ale/Documents/Proyecto%20Programacion/src/features/finances/utils/printUtils.ts)
+*   Añadir la función exportada `imprimirReporteA4(titulo, headers, keys, data, filtersDesc)` que inyecta un iframe temporal de impresión estilizado con membrete industrial de Antigravity Motors.
 
 ---
 
-### Frontend React (`/src`)
+### Integración de Botones en Módulos (`/src/features`)
 
-#### [NEW] [types.ts](file:///c:/Users/Alexwuuu1/Documents/Proyecto%20programacion/src/features/inventory/types.ts)
-*   Definición de interfaz `InventoryMovement` para la grilla de auditoría.
+#### [MODIFY] [ProductsFeature.tsx](file:///c:/Users/Ale/Documents/Proyecto%20Programacion/src/features/products/ProductsFeature.tsx) & [ProductList.tsx](file:///c:/Users/Ale/Documents/Proyecto%20Programacion/src/features/products/components/ProductList.tsx)
+*   Agregar botones en la barra de herramientas del Catálogo para exportar el inventario activo.
 
-#### [NEW] [api.ts](file:///c:/Users/Alexwuuu1/Documents/Proyecto%20programacion/src/features/inventory/api.ts)
-*   Llamada HTTP `getInventoryMovements` para el Kardex.
+#### [MODIFY] [ClientsFeature.tsx](file:///c:/Users/Ale/Documents/Proyecto%20Programacion/src/features/clients/ClientsFeature.tsx)
+*   Agregar botones de reportes sobre el listado del CRM y el listado de Cuentas por Cobrar.
 
-#### [NEW] [InventoryFeature.tsx](file:///c:/Users/Alexwuuu1/Documents/Proyecto%20programacion/src/features/inventory/InventoryFeature.tsx)
-*   Componente de trazabilidad. Muestra una grilla tabular (Kardex) con filtros de búsqueda rápida por OEM o tipo de movimiento.
+#### [MODIFY] [SaleHistory.tsx](file:///c:/Users/Ale/Documents/Proyecto%20Programacion/src/features/sales/components/SaleHistory.tsx)
+*   Agregar botones para exportar/imprimir el listado de facturas procesadas.
 
-#### [MODIFY] [DashboardOverview.tsx](file:///c:/Users/Alexwuuu1/Documents/Proyecto%20programacion/src/features/dashboard/components/DashboardOverview.tsx)
-*   Conectar a `GET /api/dashboard/kpis` al montar el componente para desplegar números reales en lugar del mock inicial.
+#### [MODIFY] [InventoryFeature.tsx](file:///c:/Users/Ale/Documents/Proyecto%20Programacion/src/features/inventory/InventoryFeature.tsx)
+*   Agregar botones en la grilla del Kardex de Trazabilidad de Stock.
 
-#### [MODIFY] [App.tsx](file:///c:/Users/Alexwuuu1/Documents/Proyecto%20programacion/src/App.tsx)
-*   Integrar la pestaña `"inventory"` para redireccionar al nuevo módulo de trazabilidad.
+#### [MODIFY] [PurchasesFeature.tsx](file:///c:/Users/Ale/Documents/Proyecto%20Programacion/src/features/purchases/PurchasesFeature.tsx)
+*   Agregar botones sobre el listado de pedidos a proveedor.
+
+#### [MODIFY] [ProductionFeature.tsx](file:///c:/Users/Ale/Documents/Proyecto%20Programacion/src/features/production/ProductionFeature.tsx)
+*   Agregar botones en el gestor de órdenes de producción.
 
 ---
 
 ## Plan de Verificación
 
-### Pruebas de Flujo Completo (Happy Path)
-1.  **Validar Novedades Recientes**:
-    *   Registrar una nueva venta y marcar una orden de producción como "En Proceso".
-    *   Entrar al Dashboard y verificar que ambas actividades aparecen ordenadas en la lista de "Actividad Reciente del Sistema".
-2.  **Validar Auditoría (Kardex)**:
-    *   Ir a la pestaña "Trazabilidad Stock" y confirmar que aparecen tanto el egreso (Salida) de la venta como el ingreso (Entrada) de la producción, detallando el OEM y la cantidad exacta descontada/sumada.
+### Pruebas de Exportación y Visualización
+1.  **Exportación a Excel**:
+    *   Ir al Catálogo de Repuestos, buscar `"Toyota"` y presionar `"Exportar Excel"`.
+    *   Verificar que se descarga el archivo `.csv`, abrirlo en Excel/Sheets y confirmar que la codificación UTF-8 es correcta (Ñs y acentos legibles) y que solo contiene los datos filtrados.
+2.  **Impresión de Reporte en PDF**:
+    *   Ir al Kardex, filtrar por `"Salida"` y presionar `"Imprimir Reporte"`.
+    *   Validar que se lanza el diálogo de impresión con el listado completo estructurado en A4, cabecera de reporte y fecha de impresión.

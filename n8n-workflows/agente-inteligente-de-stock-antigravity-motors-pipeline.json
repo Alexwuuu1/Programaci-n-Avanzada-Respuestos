@@ -1,0 +1,281 @@
+{
+  "updatedAt": "2026-06-02T02:18:46.000Z",
+  "createdAt": "2026-06-02T02:16:00.372Z",
+  "id": "7mzcg5Fv5Ir3hT0Y",
+  "name": "Agente Inteligente de Stock - Antigravity Motors (Pipeline)",
+  "description": null,
+  "active": false,
+  "isArchived": true,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "repuestos-chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "015b04c1-e000-48b4-b052-80f92a9d717a",
+      "name": "Webhook",
+      "webhookId": "a89f2e64-c621-4361-967c-193d542d2b47"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.chatInput }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        224,
+        0
+      ],
+      "id": "085093df-ecff-4e53-9980-79ca1fa88fd7",
+      "name": "Extractor de Palabras Clave"
+    },
+    {
+      "parameters": {
+        "model": "llama3.1:latest",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        128,
+        224
+      ],
+      "id": "272ee9da-2bd0-4506-b5eb-0c80152d93a4",
+      "name": "Ollama Extractor",
+      "credentials": {
+        "ollamaApi": {
+          "id": "IHCfquUorqzC2NC8",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:3000/api/inventario/stock-query",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.text.trim() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "2d7d1f91-625d-4ecd-ade3-d3a494f2711d",
+      "name": "HTTP Request (Postgres API)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nif (items.length === 0 || (items.length === 1 && Object.keys(items[0].json).length === 0)) {\n  return [{ json: { repuestos: [] } }];\n}\nreturn [{ json: { repuestos: items.map(item => item.json) } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        608,
+        0
+      ],
+      "id": "e74ee2a3-fd36-4450-ab91-437e80226fa8",
+      "name": "Validar Resultados"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=El usuario preguntó: \"{{ $('Webhook').item.json.body.chatInput }}\"\n\nY el sistema devolvió estos repuestos en tiempo real desde la base de datos de Postgres:\n{{ JSON.stringify($json.repuestos) }}\n\nPor favor, redacta una respuesta muy nutrida y profesional en español. Saluda amablemente, detalla los productos encontrados (nombre, marca, precio en Bs., ubicación física exacta, y nivel de stock). Si el stock es bajo (menor o igual a su stock mínimo), adviértelo con tono de preocupación y sugiere preventivamente un reabastecimiento. Si no hay stock o está agotado, explícalo con amabilidad. Si la lista está vacía, dile atentamente que no encontraste esa pieza exacta y sugiérele probar con otro término. Cierra con una pregunta abierta y atenta para continuar el diálogo."
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        800,
+        0
+      ],
+      "id": "5d749ab1-ab71-4b53-90dd-c2be6ebd8baf",
+      "name": "Redactor Alejandro"
+    },
+    {
+      "parameters": {
+        "model": "llama3.1:latest",
+        "options": {
+          "temperature": 0.3,
+          "numCtx": 8192,
+          "numPredict": 2048
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        704,
+        224
+      ],
+      "id": "dac53edc-71d2-4096-bd3c-17448bd89f7f",
+      "name": "Ollama Redactor",
+      "credentials": {
+        "ollamaApi": {
+          "id": "IHCfquUorqzC2NC8",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook').item.json.body.sessionId || 'default-session' }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.2,
+      "position": [
+        848,
+        224
+      ],
+      "id": "95e7d761-03ff-4e99-8781-9c3210637571",
+      "name": "Memoria de Chat"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1024,
+        0
+      ],
+      "id": "0528cce8-9977-4b4f-b17a-b93bcbc2bdd2",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extractor de Palabras Clave",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Extractor": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Extractor de Palabras Clave",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extractor de Palabras Clave": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Postgres API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Postgres API)": {
+      "main": [
+        [
+          {
+            "node": "Validar Resultados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Resultados": {
+      "main": [
+        [
+          {
+            "node": "Redactor Alejandro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Redactor": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Redactor Alejandro",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactor Alejandro": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "b93b97c4-7645-4932-b655-c160b5350306",
+  "activeVersionId": null,
+  "versionCounter": 6,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-06-02T02:16:00.374Z",
+      "createdAt": "2026-06-02T02:16:00.374Z",
+      "role": "workflow:owner",
+      "workflowId": "7mzcg5Fv5Ir3hT0Y",
+      "projectId": "ZxDGhDESpUv8wW1t",
+      "project": {
+        "updatedAt": "2026-05-20T00:38:37.774Z",
+        "createdAt": "2026-05-20T00:37:31.302Z",
+        "id": "ZxDGhDESpUv8wW1t",
+        "name": "Alejandro Villalpando <aleu9393@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "9a5782e9-61e6-4a90-8580-de39c63840f7"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": null,
+    "description": null
+  }
+}

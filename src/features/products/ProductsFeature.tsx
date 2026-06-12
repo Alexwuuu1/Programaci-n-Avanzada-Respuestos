@@ -3,8 +3,9 @@ import type { Product, Category } from "./types";
 import { ProductList } from "./components/ProductList";
 import { ProductForm } from "./components/ProductForm";
 import { CategoryManager } from "./components/CategoryManager";
-import { ChevronLeft } from "lucide-react";
+import { X } from "lucide-react";
 import { saveProduct, deleteProduct, saveCategory, deleteCategory } from "./api";
+import { toast } from "../../components/ui/Toast";
 
 interface ProductsFeatureProps {
   products: Product[];
@@ -34,8 +35,10 @@ export const ProductsFeature: React.FC<ProductsFeatureProps> = ({
       }
       setSubView("list");
       setEditingProduct(null);
+      toast.success("¡Repuesto registrado en el catálogo!");
     } catch (e: any) {
-      alert(e.message || "Error al registrar el producto.");
+      const message = e.message || "Error al registrar el producto.";
+      toast.error(message.includes("OEM") ? "Ese codigo OEM ya existe. Revisa el campo Codigo OEM / Pieza." : message);
     }
   };
 
@@ -49,8 +52,9 @@ export const ProductsFeature: React.FC<ProductsFeatureProps> = ({
       try {
         await deleteProduct(id);
         setProducts(products.filter((p) => p.id !== id));
+        toast.success("¡Repuesto eliminado!");
       } catch (e: any) {
-        alert(e.message || "Error al eliminar el producto.");
+        toast.error(e.message || "Error al eliminar el producto.");
       }
     }
   };
@@ -59,83 +63,83 @@ export const ProductsFeature: React.FC<ProductsFeatureProps> = ({
     try {
       const createdCat = await saveCategory(name);
       setCategories([...categories, createdCat]);
+      toast.success("¡Categoría creada!");
     } catch (e: any) {
-      alert(e.message || "Error al agregar la categoría.");
+      toast.error(e.message || "Error al agregar la categoría.");
     }
   };
 
   const handleDeleteCategory = async (id: string) => {
     if (products.some((p) => p.categoryId === id)) {
-      alert("No puedes eliminar una categoría que contiene repuestos asociados.");
+      toast.warning("No puedes eliminar una categoría que contiene repuestos asociados.");
       return;
     }
     if (confirm("¿Estás seguro de eliminar esta categoría?")) {
       try {
         await deleteCategory(id);
         setCategories(categories.filter((c) => c.id !== id));
+        toast.success("¡Categoría eliminada!");
       } catch (e: any) {
-        alert(e.message || "Error al eliminar la categoría.");
+        toast.error(e.message || "Error al eliminar la categoría.");
       }
     }
   };
 
   return (
     <div className="p-6 space-y-6">
-      {/* Título de la Sección con Botón de Regreso si aplica */}
-      <div className="flex items-center gap-3 border-b border-border pb-5">
-        {subView !== "list" && (
-          <button
-            onClick={() => {
-              setSubView("list");
-              setEditingProduct(null);
-            }}
-            className="p-2 rounded bg-card border border-border hover:bg-muted text-foreground transition-all"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-        )}
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Catálogo de Repuestos</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {subView === "list"
-              ? "Catálogo técnico y control de existencias físicas."
-              : subView === "form"
-              ? "Edición y registro de ficha técnica del componente."
-              : "Administración de agrupaciones mecánicas."}
-          </p>
-        </div>
+      {/* Título de la Sección */}
+      <div className="border-b border-border pb-5">
+        <h1 className="text-3xl font-bold text-foreground">Catálogo de Repuestos</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Catálogo técnico y control de existencias físicas.
+        </p>
       </div>
 
-      {/* Renderizado de Sub-Vistas */}
-      {subView === "list" && (
-        <ProductList
-          products={products}
-          categories={categories}
-          onDeleteProduct={handleDeleteProduct}
-          onEditProduct={handleEditClick}
-          onAddProductClick={() => setSubView("form")}
-          onManageCategoriesClick={() => setSubView("categories")}
-        />
-      )}
+      {/* Listado principal siempre visible de fondo */}
+      <ProductList
+        products={products}
+        categories={categories}
+        onDeleteProduct={handleDeleteProduct}
+        onEditProduct={handleEditClick}
+        onAddProductClick={() => setSubView("form")}
+        onManageCategoriesClick={() => setSubView("categories")}
+      />
 
+      {/* Modal del Formulario de Producto */}
       {subView === "form" && (
-        <ProductForm
-          categories={categories}
-          onSubmitProduct={handleAddProduct}
-          editingProduct={editingProduct}
-          onCancel={() => {
-            setSubView("list");
-            setEditingProduct(null);
-          }}
-        />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-fadeIn">
+          <div className="w-full max-w-6xl my-auto animate-zoomIn">
+            <ProductForm
+              categories={categories}
+              products={products}
+              onSubmitProduct={handleAddProduct}
+              editingProduct={editingProduct}
+              onCancel={() => {
+                setSubView("list");
+                setEditingProduct(null);
+              }}
+            />
+          </div>
+        </div>
       )}
 
+      {/* Modal del Gestor de Categorías */}
       {subView === "categories" && (
-        <CategoryManager
-          categories={categories}
-          onAddCategory={handleAddCategory}
-          onDeleteCategory={handleDeleteCategory}
-        />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-fadeIn">
+          <div className="w-full max-w-xl my-auto bg-card border border-border p-6 rounded-xl shadow-2xl relative animate-zoomIn">
+            <button
+              onClick={() => setSubView("list")}
+              className="absolute top-4 right-4 p-1.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-all"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <CategoryManager
+              categories={categories}
+              onAddCategory={handleAddCategory}
+              onDeleteCategory={handleDeleteCategory}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

@@ -1,0 +1,198 @@
+{
+  "updatedAt": "2026-06-02T05:25:37.711Z",
+  "createdAt": "2026-06-02T05:25:37.711Z",
+  "id": "WgdkC9IHwtTe8gmV",
+  "name": "Repuestos - Ventas",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "repuestos-ventas",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "5dd2bc1d-e459-45e8-aab0-4a473a7c2e1f",
+      "name": "Webhook Ventas",
+      "webhookId": "repuestos-ventas"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:3000/api/ventas",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "c36d8070-5a0a-4258-88c1-7c10327abe6a",
+      "name": "API Ventas"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ventas = Array.isArray($input.first().json) ? $input.first().json : [];\nconst pregunta = $('Webhook Ventas').item.json.body?.chatInput || '';\nconst now = new Date();\nconst todayKey = now.toISOString().split('T')[0];\nconst completadas = ventas.filter((v) => v.estado !== 'Anulada');\nconst ventasHoy = completadas.filter((v) => String(v.date || '').startsWith(todayKey));\nconst totalHistorico = completadas.reduce((s, v) => s + Number(v.total || 0), 0);\nconst totalHoy = ventasHoy.reduce((s, v) => s + Number(v.total || 0), 0);\nconst porMetodo = completadas.reduce((acc, v) => { const k = v.metodoPago || 'Sin metodo'; acc[k] = (acc[k] || 0) + Number(v.total || 0); return acc; }, {});\nreturn [{ json: { pregunta, ventas: completadas.slice(0, 30), ventasHoy, resumen: { cantidadHistorica: completadas.length, totalHistorico, cantidadHoy: ventasHoy.length, totalHoy, porMetodo } } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "id": "521c9363-1b0d-4ed0-a527-a9facbf659a2",
+      "name": "Preparar Ventas"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Eres Alejandro, operador web del modulo de ventas.\n\nConsulta: \"{{ $json.pregunta }}\"\n\nResumen real:\n{{ JSON.stringify($json.resumen) }}\n\nVentas recientes:\n{{ JSON.stringify($json.ventas) }}\n\nReglas:\n- Responde solo sobre ventas, facturacion, boletas, metodos de pago e historial.\n- No inventes datos.\n- Formatea importes en Bs.\n- Si preguntan ventas actuales u hoy, usa cantidadHoy y totalHoy.\n- Si preguntan historial, resume las ventas recientes con cliente, vendedor, fecha, total, metodo y estado.\n- Si no entiendes la consulta, ofrece ejemplos: ventas de hoy, ultimas ventas, ventas por metodo de pago, historial de boletas.\n- Cierra con una pregunta breve."
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        720,
+        0
+      ],
+      "id": "f704a3d5-3677-4300-981e-713878fa251b",
+      "name": "Redactor Ventas"
+    },
+    {
+      "parameters": {
+        "model": "llama3.1:latest",
+        "options": {
+          "temperature": 0.2,
+          "numCtx": 8192,
+          "numPredict": 1400
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        720,
+        224
+      ],
+      "id": "02e4f07f-17ee-4c52-8d7c-503e585bd572",
+      "name": "Ollama Redactor",
+      "credentials": {
+        "ollamaApi": {
+          "id": "IHCfquUorqzC2NC8",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json; return [{ json: { output: item.text || item.output || item.response || 'No pude generar una respuesta.' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        0
+      ],
+      "id": "77ad669d-cd0d-416a-b007-f03f94b51b0a",
+      "name": "Formatear Respuesta Web"
+    }
+  ],
+  "connections": {
+    "Webhook Ventas": {
+      "main": [
+        [
+          {
+            "node": "API Ventas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API Ventas": {
+      "main": [
+        [
+          {
+            "node": "Preparar Ventas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Ventas": {
+      "main": [
+        [
+          {
+            "node": "Redactor Ventas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactor Ventas": {
+      "main": [
+        [
+          {
+            "node": "Formatear Respuesta Web",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Redactor": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Redactor Ventas",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "56d9d6f0-6e83-49a1-9c00-90e14128f9b2",
+  "activeVersionId": "56d9d6f0-6e83-49a1-9c00-90e14128f9b2",
+  "versionCounter": 36,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-06-02T05:25:37.715Z",
+      "createdAt": "2026-06-02T05:25:37.715Z",
+      "role": "workflow:owner",
+      "workflowId": "WgdkC9IHwtTe8gmV",
+      "projectId": "ZxDGhDESpUv8wW1t",
+      "project": {
+        "updatedAt": "2026-05-20T00:38:37.774Z",
+        "createdAt": "2026-05-20T00:37:31.302Z",
+        "id": "ZxDGhDESpUv8wW1t",
+        "name": "Alejandro Villalpando <aleu9393@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "9a5782e9-61e6-4a90-8580-de39c63840f7"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": "Version 56d9d6f0",
+    "description": ""
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "name": "Repuestos - Telegram Bot",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "telegram-trigger-node",
+      "name": "Telegram Trigger",
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-creds-placeholder",
+          "name": "Telegram Bot Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $('Telegram Trigger').item.json.message.text || '';\nconst chatId = $('Telegram Trigger').item.json.message.chat.id;\nconst messageId = $('Telegram Trigger').item.json.message.message_id;\n\n// 1. Verificar sesión en el backend\nlet session = { vinculado: false };\ntry {\n  const sessionRes = await fetch('http://host.docker.internal:3000/api/telegram/usuario/' + chatId);\n  if (sessionRes.ok) {\n    session = await sessionRes.json();\n  }\n} catch (e) {\n  console.error('Error al conectar con el backend de sesiones:', e);\n}\n\nlet replyText = '';\nconst words = text.trim().split(/\\s+/);\nconst command = words[0].toLowerCase();\nconst args = words.slice(1);\n\nif (!session.vinculado) {\n  // ==========================================\n  // CASO: USUARIO NO AUTENTICADO\n  // ==========================================\n  if (command === '/login') {\n    const username = args[0];\n    const password = args[1];\n    if (!username || !password) {\n      replyText = '⚠️ Uso: `/login <usuario> <contraseña>`\\n*(Ejemplo: `/login carlos carlos123`)*';\n    } else {\n      try {\n        const res = await fetch('http://host.docker.internal:3000/api/telegram/vincular', {\n          method: 'POST',\n          headers: { 'Content-Type': 'application/json' },\n          body: JSON.stringify({ username, password, telegramChatId: chatId })\n        });\n        const data = await res.json();\n        if (res.ok) {\n          replyText = '🔑 ¡Sesión iniciada con éxito!\\n\\n👤 **Usuario:** ' + data.username + '\\n💼 **Rol:** ' + data.role + '\\n👷 **Nombre:** ' + data.employeeName;\n        } else {\n          replyText = '❌ Error al vincular cuenta: ' + (data.error || 'Credenciales incorrectas.');\n        }\n      } catch (err) {\n        replyText = '❌ Error de conexión con el servidor de base de datos.';\n      }\n    }\n  } else if (command === '/register') {\n    const username = args[0];\n    const password = args[1];\n    const email = args[2];\n    const role = args[3];\n    if (!username || !password || !role) {\n      replyText = '📝 Uso: `/register <usuario> <contraseña> <email_o_guion> <rol>`\\n*(Ejemplo: `/register pepe pepe123 pepe@mail.com Operario`)*\\n\\nRoles válidos: `Admin`, `Vendedor`, `Operario`.';\n    } else {\n      try {\n        const res = await fetch('http://host.docker.internal:3000/api/telegram/registrar', {\n          method: 'POST',\n          headers: { 'Content-Type': 'application/json' },\n          body: JSON.stringify({\n            username,\n            password,\n            email: email === '-' ? null : email,\n            roleName: role,\n            telegramChatId: chatId\n          })\n        });\n        const data = await res.json();\n        if (res.ok) {\n          replyText = '📝 ¡Usuario registrado y vinculado con éxito!\\n\\n👤 **Usuario:** ' + data.username + '\\n💼 **Rol:** ' + data.role + '\\n¡Bienvenido al sistema!';\n        } else {\n          replyText = '❌ Error de registro: ' + (data.error || 'Error al crear la cuenta.');\n        }\n      } catch (err) {\n        replyText = '❌ Error al contactar con el backend de registro.';\n      }\n    }\n  } else {\n    replyText = '👋 ¡Hola! Aún no has vinculado tu cuenta de Telegram al sistema de repuestos Antigravity Motors.\\n\\nPor favor, usa uno de los siguientes comandos para iniciar sesión o registrarte:\\n\\n🔑 `/login <usuario> <contraseña>`\\n📝 `/register <usuario> <contraseña> <email> <rol>`\\n\\n*(Ejemplo: `/login carlos carlos123`)*\\n*(Roles válidos: Admin, Vendedor, Operario)*';\n  }\n} else {\n  // ==========================================\n  // CASO: USUARIO AUTENTICADO\n  // ==========================================\n  if (command.startsWith('/')) {\n    // --- Comando estructurado ---\n    if (command === '/logout') {\n      try {\n        const res = await fetch('http://host.docker.internal:3000/api/telegram/desvincular', {\n          method: 'POST',\n          headers: { 'Content-Type': 'application/json' },\n          body: JSON.stringify({ telegramChatId: chatId })\n        });\n        replyText = '🔓 Sesión desvinculada de Telegram con éxito. Si deseas volver a operar, usa /login.';\n      } catch (err) {\n        replyText = '❌ Error al desvincular la sesión en el servidor.';\n      }\n    } else if (command === '/perfil') {\n      replyText = '👤 **Perfil Vinculado:**\\n\\n👤 **Usuario:** ' + session.username + '\\n💼 **Rol:** ' + session.role + '\\n👷 **Asociado:** ' + session.employeeName;\n    } else if (command === '/stock') {\n      const query = args.join(' ');\n      if (!query) {\n        replyText = '🔎 Uso: `/stock <término>`\\n*(Ejemplo: `/stock bujía` o `/stock 13101-0C`)*';\n      } else {\n        try {\n          const res = await fetch('http://host.docker.internal:3000/api/inventario/stock-query?q=' + encodeURIComponent(query));\n          const data = await res.json();\n          if (data.repuestos && data.repuestos.length > 0) {\n            const list = data.repuestos.map(r => \n              '▫️ **[' + r.oem + '] ' + r.nombre + '**\\n   └ Marca: *' + r.marca + '* | Cat: *' + r.categoria + '*\\n   └ Stock: **' + r.stock + '** (mín: ' + r.stockMinimo + ') - **' + r.estadoStock + '**\\n   └ Ubic: *' + r.ubicacion + '*\\n   └ Precio: **' + r.precio + ' Bs.**'\n            ).join('\\n\\n');\n            replyText = '🔎 **Repuestos encontrados (' + data.repuestos.length + '):**\\n\\n' + list;\n          } else {\n            replyText = '❌ No se encontraron repuestos para la búsqueda: \"' + query + '\"';\n          }\n        } catch (err) {\n          replyText = '❌ Error de conexión al consultar el stock del inventario.';\n        }\n      }\n    } else if (command === '/alertas') {\n      try {\n        const res = await fetch('http://host.docker.internal:3000/api/telegram/alertas-stock');\n        const data = await res.json();\n        if (data && data.length > 0) {\n          const list = data.map(r => \n            '⚠️ **[' + r.oem + '] ' + r.name + '**\\n   └ Stock: **' + r.stock + '** (mínimo: ' + r.minStock + ')\\n   └ Ubicación: *' + r.location + '*'\n          ).join('\\n\\n');\n          replyText = '⚠️ **Alertas de Stock Crítico (' + data.length + '):**\\n\\n' + list;\n        } else {\n          replyText = '✅ ¡Todo en orden! No hay repuestos por debajo del stock mínimo.';\n        }\n      } catch (err) {\n        replyText = '❌ Error al consultar las alertas en el servidor.';\n      }\n    } else if (command === '/compras') {\n      try {\n        const res = await fetch('http://host.docker.internal:3000/api/telegram/compras-pendientes');\n        const data = await res.json();\n        if (data && data.length > 0) {\n          const list = data.map(c => \n            '📦 **Pedido #' + c.id + '**\\n   └ Proveedor: *' + c.providerName + '*\\n   └ Total: **' + c.total + ' Bs.** | Ref: *' + c.nroReferencia + '*\\n   └ Acciones: Recibir con `/recibir ' + c.id + '`'\n          ).join('\\n\\n');\n          replyText = '📦 **Pedidos de Compra Pendientes (' + data.length + '):**\\n\\n' + list;\n        } else {\n          replyText = '✅ No hay pedidos de compras pendientes en este momento.';\n        }\n      } catch (err) {\n        replyText = '❌ Error al obtener las compras pendientes del servidor.';\n      }\n    } else if (command === '/recibir') {\n      const purchaseId = args[0];\n      if (!purchaseId) {\n        replyText = '📦 Uso: `/recibir <id_pedido>`\\n*(Ejemplo: `/recibir 3`)*';\n      } else {\n        try {\n          const res = await fetch('http://host.docker.internal:3000/api/compras/' + purchaseId + '/estado', {\n            method: 'PUT',\n            headers: { 'Content-Type': 'application/json' },\n            body: JSON.stringify({ status: 'Recibido', username: session.username })\n          });\n          const data = await res.json();\n          if (res.ok) {\n            replyText = '✅ **¡Pedido #' + purchaseId + ' Recibido!**\\n\\nLa mercadería física ha sido registrada en el Kardex e ingresada al stock de inventario correctamente.';\n          } else {\n            replyText = '❌ Error al recibir pedido: ' + (data.error || 'No se pudo actualizar el estado.');\n          }\n        } catch (err) {\n          replyText = '❌ Error al procesar la recepción en el servidor.';\n        }\n      }\n    } else {\n      replyText = 'ℹ️ **Comandos disponibles:**\\n\\n🔎 `/stock <búsqueda>` - Buscar repuestos\\n⚠️ `/alertas` - Stock por debajo del mínimo\\n📦 `/compras` - Pedidos pendientes de recibir\\n✅ `/recibir <id>` - Recibir pedido físico\\n👤 `/perfil` - Datos de tu cuenta\\n🔓 `/logout` - Cerrar sesión';\n    }\n  } else {\n    // --- Lenguaje natural (Llamar al Router de n8n) ---\n    try {\n      const routerRes = await fetch('http://localhost:5678/webhook/repuestos-router', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n        body: JSON.stringify({\n          chatInput: text,\n          sessionId: 'telegram-' + chatId\n        })\n      });\n      const routerData = await routerRes.json();\n      replyText = routerData.output || routerData.response || 'No pude obtener respuesta del orquestador inteligente.';\n    } catch (e) {\n      console.error(e);\n      replyText = '⚙️ (Ollama está procesando tu mensaje libre) ...\\n\\nNo se pudo conectar al orquestador inteligente, pero puedes operar usando los comandos estructurados.';\n    }\n  }\n}\n\nreturn [{ json: { output: replyText, chatId } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "id": "code-command-router",
+      "name": "Enrutador Inteligente de Comandos"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "telegram-send-node",
+      "name": "Telegram Send",
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-creds-placeholder",
+          "name": "Telegram Bot Token"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Enrutador Inteligente de Comandos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrutador Inteligente de Comandos": {
+      "main": [
+        [
+          {
+            "node": "Telegram Send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "versionId": "repuestos-telegram-v2",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

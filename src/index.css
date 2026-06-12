@@ -45,7 +45,7 @@
     --popover: hsl(220 15% 10%);
     --popover-foreground: hsl(200 5% 95%);
 
-    --primary: hsl(16 100% 50%); /* Industrial Orange */
+    --primary: hsl(210 100% 50%); /* Electric Blue */
     --primary-foreground: hsl(220 15% 7%);
 
     --secondary: hsl(200 10% 25%); /* Steel Gray */
@@ -54,7 +54,7 @@
     --muted: hsl(220 15% 15%);
     --muted-foreground: hsl(200 5% 65%);
 
-    --accent: hsl(16 100% 55%);
+    --accent: hsl(200 100% 55%); /* Electric Cian */
     --accent-foreground: hsl(220 15% 7%);
 
     --destructive: hsl(0 84.2% 60.2%);
@@ -62,7 +62,7 @@
 
     --border: hsl(220 15% 18%);
     --input: hsl(220 15% 14%);
-    --ring: hsl(16 100% 50%);
+    --ring: hsl(210 100% 50%);
 
     --radius: 0.5rem;
   }
@@ -77,4 +77,98 @@
     background-color: hsl(220 15% 7%);
     color: hsl(200 5% 95%);
   }
+}
+
+/* --- PREMIUM UX ANIMATIONS & TRANSITIONS --- */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes zoomIn {
+  from { transform: scale(0.96); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(30px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideInUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes pulseNeon {
+  0%, 100% { box-shadow: 0 0 5px rgba(0, 149, 255, 0.15); }
+  50% { box-shadow: 0 0 15px rgba(0, 149, 255, 0.35); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+.animate-zoomIn {
+  animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-slideInRight {
+  animation: slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slideInUp {
+  animation: slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-pulseNeon {
+  animation: pulseNeon 2s infinite ease-in-out;
+}
+
+.hover-scale {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.hover-scale:hover {
+  transform: translateY(-2px) scale(1.008);
+}
+
+.active-shrink {
+  transition: transform 0.1s ease;
+}
+.active-shrink:active {
+  transform: scale(0.98);
+}
+
+/* --- LOGIN REDESIGN ADDITIONS --- */
+@keyframes gridScroll {
+  from { background-position: 0 0; }
+  to { background-position: 40px 40px; }
+}
+
+@keyframes shakeCard {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+.bg-grid-moving {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  animation: gridScroll 4s linear infinite;
+}
+
+.animate-shake {
+  animation: shakeCard 0.4s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+.glass-login {
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 
+    0 24px 80px rgba(0, 0, 0, 0.55),
+    0 0 50px rgba(0, 149, 255, 0.08);
 }

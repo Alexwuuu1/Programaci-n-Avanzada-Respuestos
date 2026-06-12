@@ -1,0 +1,74 @@
+{
+  "name": "Repuestos - General Dashboard",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "repuestos-chat-v2", "responseMode": "lastNode", "options": {} },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-120, 40],
+      "id": "webhook-general",
+      "name": "Webhook General",
+      "webhookId": "repuestos-chat-v2"
+    },
+    {
+      "parameters": { "url": "http://host.docker.internal:3000/api/dashboard/kpis", "options": {} },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [120, 40],
+      "id": "api-dashboard",
+      "name": "API Dashboard"
+    },
+    {
+      "parameters": {
+        "jsCode": "const dashboard = $input.first().json || {};\nconst pregunta = $('Webhook General').item.json.body?.chatInput || '';\nreturn [{ json: { pregunta, dashboard } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [360, 40],
+      "id": "preparar-dashboard",
+      "name": "Preparar Dashboard"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Eres Alejandro, operador web general del sistema de repuestos.\n\nConsulta: \"{{ $json.pregunta }}\"\n\nDatos reales del dashboard:\n{{ JSON.stringify($json.dashboard) }}\n\nReglas:\n- Responde sobre estado general del negocio usando solo los datos del dashboard.\n- Resume ingresos de hoy, utilidad, stock critico, produccion activa, ventas/metodos/top productos si existen.\n- No inventes datos.\n- Formatea importes en Bs.\n- Si el usuario pregunta algo muy especifico de otro modulo, sugiere usar el flujo especifico correspondiente.\n- Cierra con una pregunta breve."
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [600, 40],
+      "id": "redactor-dashboard",
+      "name": "Redactor General"
+    },
+    {
+      "parameters": { "model": "llama3.1:latest", "options": { "temperature": 0.2, "numCtx": 8192, "numPredict": 1400 } },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [600, 260],
+      "id": "ollama-dashboard",
+      "name": "Ollama Redactor",
+      "credentials": { "ollamaApi": { "id": "IHCfquUorqzC2NC8", "name": "Ollama account" } }
+    },
+    {
+      "parameters": { "jsCode": "const item = $input.first().json; return [{ json: { output: item.text || item.output || item.response || 'No pude generar una respuesta.' } }];" },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 40],
+      "id": "formatear-dashboard",
+      "name": "Formatear Respuesta Web"
+    }
+  ],
+  "connections": {
+    "Webhook General": { "main": [[{ "node": "API Dashboard", "type": "main", "index": 0 }]] },
+    "API Dashboard": { "main": [[{ "node": "Preparar Dashboard", "type": "main", "index": 0 }]] },
+    "Preparar Dashboard": { "main": [[{ "node": "Redactor General", "type": "main", "index": 0 }]] },
+    "Redactor General": { "main": [[{ "node": "Formatear Respuesta Web", "type": "main", "index": 0 }]] },
+    "Ollama Redactor": { "ai_languageModel": [[{ "node": "Redactor General", "type": "ai_languageModel", "index": 0 }]] }
+  },
+  "pinData": {},
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "versionId": "repuestos-dashboard-v1",
+  "meta": { "templateCredsSetupCompleted": true }
+}

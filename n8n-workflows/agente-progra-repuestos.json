@@ -1,0 +1,251 @@
+{
+  "updatedAt": "2026-06-02T03:02:04.000Z",
+  "createdAt": "2026-06-02T02:57:07.791Z",
+  "id": "gdrgmSshst3I6HjB",
+  "name": "Agente Progra Repuestos",
+  "description": null,
+  "active": false,
+  "isArchived": true,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "repuestos-chat",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        80
+      ],
+      "id": "f7e08822-94f1-4bea-bbe6-d140f2a6469a",
+      "name": "Webhook",
+      "webhookId": "3829a0f0-c6fd-462f-a505-9002abc58829"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = String($json.body?.chatInput || '').trim();\n\nconst normalize = (value) => value\n  .normalize('NFD')\n  .replace(/[\\u0300-\\u036f]/g, '')\n  .toLowerCase();\n\nconst text = normalize(input);\nconst hasAny = (words) => words.some((word) => text.includes(word));\n\nlet output = '';\n\nif (!text || text.length < 2) {\n  output = '__HELP__';\n} else if (hasAny(['venta', 'vendimos', 'vendido', 'facturacion', 'boleta', 'ingreso por venta', 'historial de venta'])) {\n  output = '__SALES__';\n} else if (hasAny(['caja', 'finanza', 'ganancia', 'utilidad', 'egreso', 'ingreso', 'cuentas por cobrar', 'flujo de caja'])) {\n  output = '__FINANCE__';\n} else if (hasAny(['cliente', 'crm', 'deudor', 'premium', 'frecuente', 'cartera'])) {\n  output = '__CLIENTS__';\n} else if (hasAny(['compra', 'proveedor', 'pedido', 'abastecimiento', 'recepcion'])) {\n  output = '__PURCHASES__';\n} else if (hasAny(['produccion', 'fabrica', 'torneria', 'orden de produccion', 'lote'])) {\n  output = '__PRODUCTION__';\n} else if (hasAny(['empleado', 'personal', 'operario', 'vendedor', 'turno'])) {\n  output = '__EMPLOYEES__';\n} else if (hasAny(['usuario', 'rol', 'permiso', 'acceso'])) {\n  output = '__USERS__';\n} else if (hasAny(['dashboard', 'panel', 'kpi', 'indicador', 'estado general', 'situacion actual', 'resumen del sistema'])) {\n  output = '__DASHBOARD__';\n} else if (hasAny(['stock bajo', 'stock critico', 'por agotarse', 'agotarse', 'critico', 'alerta'])) {\n  output = '__INVENTORY_LOW__';\n} else if (hasAny(['que repuestos tenemos', 'cuantos repuestos', 'inventario general', 'catalogo', 'productos disponibles', 'lista de productos', 'que inventario', 'repuestos tenemos', 'stock general'])) {\n  output = '__ALL__';\n} else if (/^(hola|buenas|buen dia|buenas tardes|buenas noches|como estas|que tal|gracias|ok|dale|chau|adios)\\b/.test(text)) {\n  output = '__CHAT__';\n} else if (hasAny(['que puedes hacer', 'ayuda', 'no entiendo', 'como te uso', 'que te puedo preguntar'])) {\n  output = '__HELP__';\n} else {\n  const stop = new Set([\n    'tienes', 'tenes', 'hay', 'precio', 'donde', 'esta', 'ubicacion',\n    'stock', 'repuesto', 'repuestos', 'para', 'del', 'de', 'la', 'el',\n    'los', 'las', 'un', 'una', 'que', 'cual', 'cuanto', 'cuantos',\n    'compatible', 'compatibles'\n  ]);\n\n  const terms = text\n    .replace(/[^a-z0-9+.-]+/g, ' ')\n    .split(/\\s+/)\n    .filter((term) => term.length >= 2 && !stop.has(term))\n    .slice(0, 6);\n\n  output = terms.length ? terms.join(' ') : '__HELP__';\n}\n\nreturn [{\n  json: {\n    text: output,\n    originalInput: input\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "483b56cc-2f33-428c-99fa-c95aea344957",
+      "name": "Extractor de Palabras Clave"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:3000/api/inventario/stock-query",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.text || $json.output || $('Webhook').item.json.body.chatInput }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        288,
+        0
+      ],
+      "id": "1b0b7d2a-9cb5-4c02-8898-02b391fd8e56",
+      "name": "HTTP Request (Postgres API)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst repuestos = [];\nlet totalProductos = 0;\nlet totalUnidades = 0;\nconst pregunta = $('Webhook').item.json.body.chatInput || '';\nconst consulta = String($('Extractor de Palabras Clave').item.json.text || $('Extractor de Palabras Clave').item.json.output || '').trim();\n\nfor (const item of items) {\n  if (Array.isArray(item.json)) {\n    repuestos.push(...item.json);\n  } else if (Array.isArray(item.json?.repuestos)) {\n    repuestos.push(...item.json.repuestos);\n    totalProductos = Number(item.json.totalProductos || 0);\n    totalUnidades = Number(item.json.totalUnidades || 0);\n  } else if (item.json && Object.keys(item.json).length > 0 && !item.json.repuestos) {\n    repuestos.push(item.json);\n  }\n}\n\nconst consultaNormalizada = consulta.toUpperCase();\nconst mapa = {\n  '__CHAT__': 'chat',\n  '__HELP__': 'ayuda',\n  '__DASHBOARD__': 'dashboard',\n  '__ALL__': 'inventario_general',\n  '__INVENTORY_ALL__': 'inventario_general',\n  '__INVENTORY_LOW__': 'inventario_bajo',\n  '__SALES__': 'ventas',\n  '__FINANCE__': 'finanzas',\n  '__CLIENTS__': 'clientes',\n  '__PURCHASES__': 'compras',\n  '__PRODUCTION__': 'produccion',\n  '__EMPLOYEES__': 'empleados',\n  '__USERS__': 'usuarios'\n};\nconst tipoConsulta = mapa[consultaNormalizada] || 'busqueda_especifica';\n\nreturn [{\n  json: {\n    pregunta,\n    consulta,\n    tipoConsulta,\n    repuestos,\n    totalProductos,\n    totalUnidades\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "id": "e6b1a635-6e3a-4239-a427-4f463cf1c496",
+      "name": "Validar Resultados"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Eres Alejandro, operador web profesional de un sistema de gestion de repuestos automotrices en Bolivia.\n\nTu estilo:\n- Amable, directo, util y seguro.\n- Hablas como operador real de mostrador, almacen y administracion.\n- No inventas productos, precios, ventas, caja, clientes ni stock.\n- No muestres al usuario textos internos como tipoConsulta, palabras clave o etiquetas __SALES__.\n- Si un modulo aun no esta conectado a este flujo de n8n, dilo claramente.\n\nConsulta original:\n\"{{ $json.pregunta }}\"\n\nTipo interno: {{ $json.tipoConsulta }}\nConsulta interna: {{ $json.consulta }}\n\nResumen real del inventario:\n- Total productos activos: {{ $json.totalProductos || 0 }}\n- Total unidades en stock: {{ $json.totalUnidades || 0 }}\n\nResultados reales desde PostgreSQL:\n{{ JSON.stringify($json.repuestos) }}\n\nReglas:\n1. Si tipoConsulta es \"chat\": responde natural y breve. Ofrece ayudar con inventario, precios, ubicaciones, ventas, caja, clientes, compras o produccion.\n2. Si tipoConsulta es \"ayuda\": di que no entendiste bien y ofrece ejemplos:\n   - tienes bujia bosch?\n   - precio de FR7KPP33U+\n   - donde esta el filtro de aceite Hilux?\n   - que repuestos tenemos?\n   - dime nuestras ventas actuales\n   - como esta la caja?\n   - clientes con deuda\n   - compras pendientes\n3. Si tipoConsulta es \"dashboard\": responde que puedes ayudar con el estado general, pero este flujo todavia no tiene conectado el endpoint del dashboard en n8n.\n4. Si tipoConsulta es \"ventas\": responde que ventas esta reconocido, pero este flujo todavia no tiene conectado el endpoint de ventas. Di que cuando se conecte podras mostrar ventas de hoy, total vendido, historial y metodos de pago.\n5. Si tipoConsulta es \"finanzas\": responde que caja/finanzas esta reconocido, pero este flujo todavia no tiene conectado el endpoint financiero. Di que cuando se conecte podras mostrar caja, ingresos, egresos, utilidad y cuentas por cobrar.\n6. Si tipoConsulta es \"clientes\": responde que CRM/clientes esta reconocido, pero este flujo todavia no tiene conectado el endpoint de clientes.\n7. Si tipoConsulta es \"compras\": responde que compras/proveedores esta reconocido, pero este flujo todavia no tiene conectado el endpoint de compras.\n8. Si tipoConsulta es \"produccion\": responde que produccion esta reconocida, pero este flujo todavia no tiene conectado el endpoint de produccion.\n9. Si tipoConsulta es \"empleados\": responde que empleados esta reconocido, pero este flujo todavia no tiene conectado el endpoint de empleados.\n10. Si tipoConsulta es \"usuarios\": responde que usuarios/roles esta reconocido, pero este flujo todavia no tiene conectado el endpoint de usuarios.\n11. Si tipoConsulta es \"inventario_general\": responde con total de productos activos, total de unidades y una lista resumida de maximo 10 repuestos principales.\n12. Si tipoConsulta es \"inventario_bajo\": si hay resultados, menciona productos con stock bajo. Si no hay filtro real conectado, indica que falta una consulta especifica de stock critico.\n13. Si tipoConsulta es \"busqueda_especifica\" y hay resultados: lista nombre, OEM, marca, precio en Bs., ubicacion fisica, compatibilidad y stock.\n14. Si tipoConsulta es \"busqueda_especifica\" y no hay resultados: di que no encontraste coincidencias claras y pide OEM, marca, modelo del vehiculo, categoria o nombre alternativo.\n15. Si stock <= stockMinimo, advierte stock bajo.\n16. Si stock es 0, indica agotado.\n17. Formatea precios como Bs. 1.250,00 cuando sea posible.\n18. Cierra siempre con una pregunta breve para seguir ayudando."
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        736,
+        0
+      ],
+      "id": "9f769b67-f702-46b0-8f2f-dba28bbc7e41",
+      "name": "Redactor Alejandro"
+    },
+    {
+      "parameters": {
+        "model": "llama3.1:latest",
+        "options": {
+          "temperature": 0.3,
+          "numCtx": 8192,
+          "numPredict": 2048
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        592,
+        224
+      ],
+      "id": "7e8fc4e5-43fe-4f7b-b516-0182b5ac43b2",
+      "name": "Ollama Redactor",
+      "credentials": {
+        "ollamaApi": {
+          "id": "IHCfquUorqzC2NC8",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook').item.json.body.sessionId || 'dashboard-session' }}",
+        "contextWindowLength": 8
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.2,
+      "position": [
+        864,
+        224
+      ],
+      "id": "e9cb5a32-1b5a-4e02-b72b-866f7d265195",
+      "name": "Memoria de Chat"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst output = item.text || item.output || item.response || 'No pude generar una respuesta en este momento.';\n\nreturn [{\n  json: {\n    output\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        992,
+        0
+      ],
+      "id": "e1fab274-d832-4bdf-a6a5-5164a7d964e9",
+      "name": "Formatear Respuesta Web"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extractor de Palabras Clave",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extractor de Palabras Clave": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Postgres API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Postgres API)": {
+      "main": [
+        [
+          {
+            "node": "Validar Resultados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Resultados": {
+      "main": [
+        [
+          {
+            "node": "Redactor Alejandro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactor Alejandro": {
+      "main": [
+        [
+          {
+            "node": "Formatear Respuesta Web",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Redactor": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Redactor Alejandro",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memoria de Chat": {
+      "ai_memory": [
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "487e0613-5703-4524-ab73-29028fe67988",
+  "activeVersionId": null,
+  "versionCounter": 10,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-06-02T02:57:07.795Z",
+      "createdAt": "2026-06-02T02:57:07.795Z",
+      "role": "workflow:owner",
+      "workflowId": "gdrgmSshst3I6HjB",
+      "projectId": "ZxDGhDESpUv8wW1t",
+      "project": {
+        "updatedAt": "2026-05-20T00:38:37.774Z",
+        "createdAt": "2026-05-20T00:37:31.302Z",
+        "id": "ZxDGhDESpUv8wW1t",
+        "name": "Alejandro Villalpando <aleu9393@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "9a5782e9-61e6-4a90-8580-de39c63840f7"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": null,
+    "description": null
+  }
+}

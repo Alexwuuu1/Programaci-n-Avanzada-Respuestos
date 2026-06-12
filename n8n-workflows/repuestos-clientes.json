@@ -1,0 +1,198 @@
+{
+  "updatedAt": "2026-06-02T05:26:08.807Z",
+  "createdAt": "2026-06-02T05:26:08.807Z",
+  "id": "SofOoWmEdoIHVGfX",
+  "name": "Repuestos - Clientes",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "repuestos-clientes",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "f2bab1b0-43aa-44e3-816e-521c110730a6",
+      "name": "Webhook Clientes",
+      "webhookId": "repuestos-clientes"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:3000/api/clientes",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "e982f022-651d-4b28-831b-136ed2966e7d",
+      "name": "API Clientes"
+    },
+    {
+      "parameters": {
+        "jsCode": "const clientes = Array.isArray($input.first().json) ? $input.first().json : [];\nconst pregunta = $('Webhook Clientes').item.json.body?.chatInput || '';\nconst activos = clientes.filter((c) => !c.status || c.status === 'Activo' || c.estado === 'Activo');\nconst premium = clientes.filter((c) => String(c.loyaltyLevel || c.nivelFidelidad || '').toLowerCase().includes('premium') || String(c.loyaltyLevel || c.nivelFidelidad || '').toLowerCase().includes('vip'));\nconst frecuentes = clientes.filter((c) => String(c.loyaltyLevel || c.nivelFidelidad || '').toLowerCase().includes('frecuente'));\nconst conCredito = clientes.filter((c) => Number(c.creditLimit || c.limiteCredito || 0) > 0);\nreturn [{ json: { pregunta, clientes: clientes.slice(0, 60), resumen: { total: clientes.length, activos: activos.length, premium: premium.length, frecuentes: frecuentes.length, conCredito: conCredito.length } } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "id": "17687548-824b-430e-91b9-4d058e656b19",
+      "name": "Preparar Clientes"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Eres Alejandro, operador web de CRM/clientes.\n\nConsulta: \"{{ $json.pregunta }}\"\n\nResumen real:\n{{ JSON.stringify($json.resumen) }}\n\nClientes disponibles:\n{{ JSON.stringify($json.clientes) }}\n\nReglas:\n- Responde solo sobre clientes, CRM, fidelidad, cartera y datos comerciales.\n- No inventes datos.\n- No reveles datos sensibles innecesarios; evita mostrar direccion/telefono completo salvo que el usuario lo pida claramente.\n- Si preguntan clientes premium, frecuentes o activos, usa el resumen y lista los mas relevantes.\n- Si preguntan deuda/cuentas por cobrar y no vienen saldos en los datos, dilo claramente.\n- Si no entiendes, ofrece ejemplos: clientes premium, clientes activos, clientes con credito, resumen CRM.\n- Cierra con una pregunta breve."
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        720,
+        0
+      ],
+      "id": "8a81aec0-f6ee-46dc-bed2-0360a26d678f",
+      "name": "Redactor Clientes"
+    },
+    {
+      "parameters": {
+        "model": "llama3.1:latest",
+        "options": {
+          "temperature": 0.2,
+          "numCtx": 8192,
+          "numPredict": 1400
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        720,
+        224
+      ],
+      "id": "13764e63-fb0d-456e-a2f1-921700fb53e5",
+      "name": "Ollama Redactor",
+      "credentials": {
+        "ollamaApi": {
+          "id": "IHCfquUorqzC2NC8",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json; return [{ json: { output: item.text || item.output || item.response || 'No pude generar una respuesta.' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        0
+      ],
+      "id": "03520c97-0a8b-498d-9d8a-54c0f0752e98",
+      "name": "Formatear Respuesta Web"
+    }
+  ],
+  "connections": {
+    "Webhook Clientes": {
+      "main": [
+        [
+          {
+            "node": "API Clientes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API Clientes": {
+      "main": [
+        [
+          {
+            "node": "Preparar Clientes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Clientes": {
+      "main": [
+        [
+          {
+            "node": "Redactor Clientes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactor Clientes": {
+      "main": [
+        [
+          {
+            "node": "Formatear Respuesta Web",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Redactor": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Redactor Clientes",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "b65ee56a-d909-4620-a645-4d19b65f2bf8",
+  "activeVersionId": "b65ee56a-d909-4620-a645-4d19b65f2bf8",
+  "versionCounter": 36,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-06-02T05:26:08.809Z",
+      "createdAt": "2026-06-02T05:26:08.809Z",
+      "role": "workflow:owner",
+      "workflowId": "SofOoWmEdoIHVGfX",
+      "projectId": "ZxDGhDESpUv8wW1t",
+      "project": {
+        "updatedAt": "2026-05-20T00:38:37.774Z",
+        "createdAt": "2026-05-20T00:37:31.302Z",
+        "id": "ZxDGhDESpUv8wW1t",
+        "name": "Alejandro Villalpando <aleu9393@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "9a5782e9-61e6-4a90-8580-de39c63840f7"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": "Version b65ee56a",
+    "description": ""
+  }
+}

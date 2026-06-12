@@ -1,0 +1,198 @@
+{
+  "updatedAt": "2026-06-02T05:27:11.827Z",
+  "createdAt": "2026-06-02T05:27:11.827Z",
+  "id": "g7lJPmoUt7EhkylT",
+  "name": "Repuestos - Usuarios",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "repuestos-usuarios",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e6560cf6-3228-4d35-9e1b-77bb667e68da",
+      "name": "Webhook Usuarios",
+      "webhookId": "repuestos-usuarios"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:3000/api/usuarios",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "64f3c088-11b9-41ce-9bfb-f28f78bcb1a8",
+      "name": "API Usuarios"
+    },
+    {
+      "parameters": {
+        "jsCode": "const usuarios = Array.isArray($input.first().json) ? $input.first().json : [];\nconst pregunta = $('Webhook Usuarios').item.json.body?.chatInput || '';\nconst activos = usuarios.filter((u) => (u.status || u.estado || '').toLowerCase() === 'activo');\nconst porRol = usuarios.reduce((acc, u) => { const k = u.roleName || u.rolNombre || u.role || u.rol || 'Sin rol'; acc[k] = (acc[k] || 0) + 1; return acc; }, {});\nreturn [{ json: { pregunta, usuarios, resumen: { total: usuarios.length, activos: activos.length, porRol } } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "id": "04c256bd-64f6-42ef-b2ea-d90457a5bc3f",
+      "name": "Preparar Usuarios"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Eres Alejandro, operador web de usuarios y roles.\n\nConsulta: \"{{ $json.pregunta }}\"\n\nResumen real:\n{{ JSON.stringify($json.resumen) }}\n\nUsuarios:\n{{ JSON.stringify($json.usuarios) }}\n\nReglas:\n- Responde solo sobre usuarios, roles, accesos y estado de cuentas.\n- No reveles contrasenas, hashes ni datos sensibles.\n- Si preguntan usuarios activos, roles o resumen, usa el resumen real.\n- Si no entiendes, ofrece ejemplos: usuarios activos, roles del sistema, usuarios por rol.\n- Cierra con una pregunta breve."
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        720,
+        0
+      ],
+      "id": "ecdb62b0-24f8-4c51-87f2-b21528bb8a5e",
+      "name": "Redactor Usuarios"
+    },
+    {
+      "parameters": {
+        "model": "llama3.1:latest",
+        "options": {
+          "temperature": 0.2,
+          "numCtx": 8192,
+          "numPredict": 1200
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        720,
+        224
+      ],
+      "id": "220db444-60f1-421b-adc3-43c7236759e9",
+      "name": "Ollama Redactor",
+      "credentials": {
+        "ollamaApi": {
+          "id": "IHCfquUorqzC2NC8",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json; return [{ json: { output: item.text || item.output || item.response || 'No pude generar una respuesta.' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        0
+      ],
+      "id": "4cda6bf7-29ca-4050-82ef-07b46a06bd27",
+      "name": "Formatear Respuesta Web"
+    }
+  ],
+  "connections": {
+    "Webhook Usuarios": {
+      "main": [
+        [
+          {
+            "node": "API Usuarios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API Usuarios": {
+      "main": [
+        [
+          {
+            "node": "Preparar Usuarios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Usuarios": {
+      "main": [
+        [
+          {
+            "node": "Redactor Usuarios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactor Usuarios": {
+      "main": [
+        [
+          {
+            "node": "Formatear Respuesta Web",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Redactor": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Redactor Usuarios",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "09a391e3-5ba6-452a-a6de-0f2704d6e914",
+  "activeVersionId": "09a391e3-5ba6-452a-a6de-0f2704d6e914",
+  "versionCounter": 36,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-06-02T05:27:11.829Z",
+      "createdAt": "2026-06-02T05:27:11.829Z",
+      "role": "workflow:owner",
+      "workflowId": "g7lJPmoUt7EhkylT",
+      "projectId": "ZxDGhDESpUv8wW1t",
+      "project": {
+        "updatedAt": "2026-05-20T00:38:37.774Z",
+        "createdAt": "2026-05-20T00:37:31.302Z",
+        "id": "ZxDGhDESpUv8wW1t",
+        "name": "Alejandro Villalpando <aleu9393@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "9a5782e9-61e6-4a90-8580-de39c63840f7"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": "Version 09a391e3",
+    "description": ""
+  }
+}

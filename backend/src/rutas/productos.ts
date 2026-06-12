@@ -23,6 +23,14 @@ rutaProductos.get("/", async (req: Request, res: Response) => {
       stock: p.stock,
       compatibility: p.compatibilidad,
       providerName: p.proveedor?.nombre || "Sin Proveedor",
+      brand: p.marca || "",
+      costPrice: p.precioCompra !== null && p.precioCompra !== undefined ? Number(p.precioCompra) : null,
+      minStock: p.stockMinimo,
+      location: p.ubicacion || "",
+      weight: p.peso !== null && p.peso !== undefined ? Number(p.peso) : null,
+      image: p.imagen || "",
+      notes: p.notas || "",
+      status: p.estado,
     }));
     res.json(mapped);
   } catch (e) {
@@ -32,7 +40,10 @@ rutaProductos.get("/", async (req: Request, res: Response) => {
 
 // Guardar (Crear o Editar) producto
 rutaProductos.post("/", async (req: Request, res: Response): Promise<void> => {
-  const { id, oem, name, categoryId, price, stock, compatibility, providerName } = req.body;
+  const {
+    id, oem, name, categoryId, price, stock, compatibility, providerName,
+    brand, costPrice, minStock, location, weight, image, notes, status,
+  } = req.body;
 
   if (!oem || !name || !categoryId || price === undefined || stock === undefined || !compatibility || !providerName) {
     res.status(400).json({ error: "Datos de producto incompletos." });
@@ -51,6 +62,18 @@ rutaProductos.post("/", async (req: Request, res: Response): Promise<void> => {
       });
     }
 
+    // Build the new-fields data object (shared by create & update)
+    const newFieldsData = {
+      marca: brand ? brand.trim() : null,
+      precioCompra: costPrice !== undefined && costPrice !== null ? Number(costPrice) : null,
+      ...(minStock !== undefined && minStock !== null && { stockMinimo: Number(minStock) }),
+      ubicacion: location ? location.trim() : null,
+      peso: weight !== undefined && weight !== null ? Number(weight) : null,
+      imagen: image ? image.trim() : null,
+      notas: notes ? notes.trim() : null,
+      ...(status !== undefined && { estado: status.trim() }),
+    };
+
     if (id) {
       // Editar
       const updated = await prisma.producto.update({
@@ -63,6 +86,7 @@ rutaProductos.post("/", async (req: Request, res: Response): Promise<void> => {
           stock: Number(stock),
           compatibilidad: compatibility,
           proveedorId: dbProvider.id,
+          ...newFieldsData,
         },
       });
       res.json({
@@ -74,6 +98,14 @@ rutaProductos.post("/", async (req: Request, res: Response): Promise<void> => {
         stock: updated.stock,
         compatibility: updated.compatibilidad,
         providerName: providerName,
+        brand: updated.marca || "",
+        costPrice: updated.precioCompra !== null && updated.precioCompra !== undefined ? Number(updated.precioCompra) : null,
+        minStock: updated.stockMinimo,
+        location: updated.ubicacion || "",
+        weight: updated.peso !== null && updated.peso !== undefined ? Number(updated.peso) : null,
+        image: updated.imagen || "",
+        notes: updated.notas || "",
+        status: updated.estado,
       });
     } else {
       // Crear
@@ -86,6 +118,7 @@ rutaProductos.post("/", async (req: Request, res: Response): Promise<void> => {
           stock: Number(stock),
           compatibilidad: compatibility,
           proveedorId: dbProvider.id,
+          ...newFieldsData,
         },
       });
       res.status(201).json({
@@ -97,6 +130,14 @@ rutaProductos.post("/", async (req: Request, res: Response): Promise<void> => {
         stock: created.stock,
         compatibility: created.compatibilidad,
         providerName: providerName,
+        brand: created.marca || "",
+        costPrice: created.precioCompra !== null && created.precioCompra !== undefined ? Number(created.precioCompra) : null,
+        minStock: created.stockMinimo,
+        location: created.ubicacion || "",
+        weight: created.peso !== null && created.peso !== undefined ? Number(created.peso) : null,
+        image: created.imagen || "",
+        notes: created.notas || "",
+        status: created.estado,
       });
     }
   } catch (e) {

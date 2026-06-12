@@ -1,0 +1,250 @@
+{
+  "name": "Agente Inteligente de Stock - Antigravity Motors (Pipeline)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "repuestos-chat",
+        "responseMode": "responseNode",
+        "options": {
+          "cors": true
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "webhook-trigger-node",
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "systemMessage": "Extract the main search keyword or OEM code of the car part the user is looking for from their query.\n\nRules:\n1. Output ONLY the extracted search keyword or code, with no other text, punctuation, or explanation.\n2. Convert plural words to singular (e.g., convert \"filtros\" to \"filtro\", \"pistones\" to \"piston\", \"bujías\" to \"bujia\").\n3. Remove generic connecting words like \"de\" or \"para\" (e.g., for \"filtros de aceite\", extract \"filtro aceite\" or just \"filtro\").\n4. If the user is just saying hello or asking a general question without looking for a specific part, output an empty string.",
+        "text": "={{ $json.body.chatInput }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        220,
+        0
+      ],
+      "id": "extractor-chain-node",
+      "name": "Extractor de Palabras Clave"
+    },
+    {
+      "parameters": {
+        "model": "llama3.1",
+        "baseUrl": "http://host.docker.internal:11434",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        120,
+        220
+      ],
+      "id": "ollama-extractor-model",
+      "name": "Ollama Extractor"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:3000/api/inventario/stock-query",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.text.trim() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "http-request-node",
+      "name": "HTTP Request (Postgres API)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nif (items.length === 0 || (items.length === 1 && Object.keys(items[0].json).length === 0)) {\n  return [{ json: { repuestos: [] } }];\n}\nreturn [{ json: { repuestos: items.map(item => item.json) } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        0
+      ],
+      "id": "validator-code-node",
+      "name": "Validar Resultados"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "systemMessage": "You are Alejandro, the expert warehouse assistant at Antigravity Motors. You have a friendly, helpful, and experienced mechanic persona. You speak naturally and fluidly in Spanish, like a real person talking to a coworker. Your task is to write a warm, detailed, and human-like response in Spanish based on the user's original query and the database results provided to you. Always convert prices to Bolivianos (Bs.).",
+        "text": "=El usuario preguntó: \"{{ $('Webhook').item.json.body.chatInput }}\"\n\nY el sistema devolvió estos repuestos en tiempo real desde la base de datos de Postgres:\n{{ JSON.stringify($json.repuestos) }}\n\nPor favor, redacta una respuesta muy nutrida y profesional en español. Saluda amablemente, detalla los productos encontrados (nombre, marca, precio en Bs., ubicación física exacta, y nivel de stock). Si el stock es bajo (menor o igual a su stock mínimo), adviértelo con tono de preocupación y sugiere preventivamente un reabastecimiento. Si no hay stock o está agotado, explícalo con amabilidad. Si la lista está vacía, dile atentamente que no encontraste esa pieza exacta y sugiérele probar con otro término. Cierra con una pregunta abierta y atenta para continuar el diálogo."
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        800,
+        0
+      ],
+      "id": "formatter-chain-node",
+      "name": "Redactor Alejandro"
+    },
+    {
+      "parameters": {
+        "model": "llama3.1",
+        "baseUrl": "http://host.docker.internal:11434",
+        "options": {
+          "temperature": 0.3,
+          "numCtx": 8192,
+          "numPredict": 2048
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        700,
+        220
+      ],
+      "id": "ollama-formatter-model",
+      "name": "Ollama Redactor"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook').item.json.body.sessionId || 'default-session' }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.2,
+      "position": [
+        840,
+        220
+      ],
+      "id": "formatter-memory",
+      "name": "Memoria de Chat"
+    },
+    {
+      "parameters": {
+        "responseMode": "custom",
+        "responseBody": "={\n  \"output\": \"{{ $json.text }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1020,
+        0
+      ],
+      "id": "respond-to-webhook-node",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extractor de Palabras Clave",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Extractor": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Extractor de Palabras Clave",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extractor de Palabras Clave": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Postgres API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Postgres API)": {
+      "main": [
+        [
+          {
+            "node": "Validar Resultados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Resultados": {
+      "main": [
+        [
+          {
+            "node": "Redactor Alejandro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Redactor": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Redactor Alejandro",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memoria de Chat": {
+      "ai_memory": [
+        [
+          {
+            "node": "Redactor Alejandro",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactor Alejandro": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

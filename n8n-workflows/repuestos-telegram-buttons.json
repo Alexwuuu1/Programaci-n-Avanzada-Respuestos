@@ -1,0 +1,297 @@
+{
+  "updatedAt": "2026-06-10T17:48:19.687Z",
+  "createdAt": "2026-06-02T23:35:46.023Z",
+  "id": "071LfThtq1qeiOIM",
+  "name": "Repuestos - Telegram Bot",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "callback_query"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -208,
+        0
+      ],
+      "id": "telegram-trigger-node",
+      "name": "Telegram Trigger",
+      "webhookId": "74281b19-7f74-4a84-bc29-a70caf166a23",
+      "credentials": {
+        "telegramApi": {
+          "id": "79bkQTmHvuA9yJYT",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3000/api/telegram/webhook",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"{{ $json.message?.text || '' }}\",\n  \"chatId\": \"{{ $json.message?.chat?.id || $json.callback_query?.from?.id }}\",\n  \"callbackQueryData\": \"{{ $json.callback_query?.data || '' }}\",\n  \"callbackQueryId\": \"{{ $json.callback_query?.id || '' }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        64,
+        0
+      ],
+      "id": "http-webhook-backend",
+      "name": "HTTP Request Webhook Backend"
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.keyboard_type || 'none' }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "reply"
+            },
+            {
+              "value2": "inline",
+              "output": 1
+            },
+            {
+              "value2": "none",
+              "output": 2
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        304,
+        0
+      ],
+      "id": "keyboard-router-switch",
+      "name": "Switch Keyboard Router"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.output }}",
+        "replyMarkup": "replyKeyboard",
+        "replyKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "🔎 Buscar Stock",
+                    "additionalFields": {}
+                  },
+                  {
+                    "text": "⚠️ Alertas Stock",
+                    "additionalFields": {}
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "📦 Pedidos de Compra",
+                    "additionalFields": {}
+                  },
+                  {
+                    "text": "👥 Ver Clientes",
+                    "additionalFields": {}
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "👤 Mi Perfil",
+                    "additionalFields": {}
+                  },
+                  {
+                    "text": "ℹ️ Ayuda",
+                    "additionalFields": {}
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "replyKeyboardOptions": {
+          "resize_keyboard": true,
+          "one_time_keyboard": false
+        },
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        608,
+        -144
+      ],
+      "id": "telegram-send-bottom",
+      "name": "Telegram Send (Bottom Keyboard)",
+      "webhookId": "b9044007-6ab8-4c3f-ad43-ef878683d008",
+      "credentials": {
+        "telegramApi": {
+          "id": "79bkQTmHvuA9yJYT",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot8689666634:AAHN6DbtWD2whiytB0anjziOCUt1KuF2cro/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  chat_id: $json.chatId,\n  text: $json.output,\n  parse_mode: 'Markdown',\n  reply_markup: {\n    inline_keyboard: $json.inline_keyboard\n  }\n} }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        608,
+        0
+      ],
+      "id": "telegram-send-inline",
+      "name": "Telegram Send (Inline Keyboard)"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        608,
+        160
+      ],
+      "id": "telegram-send-none",
+      "name": "Telegram Send (No Keyboard)",
+      "webhookId": "86f5949c-c87b-436f-b89e-d3737819dae0",
+      "credentials": {
+        "telegramApi": {
+          "id": "79bkQTmHvuA9yJYT",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## ¡Hola de parte de Antigravity AI! 🚀 (v6)\n\nEsta es la versión v6 del flujo de Telegram.\n\nHe añadido soporte para `callback_query` (acciones de botones inline) y un enrutador switch que envía teclados Bottom, Inline o ninguno según devuelva el Backend.",
+        "height": 220,
+        "width": 340,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -752,
+        -896
+      ],
+      "id": "antigravity-test-note",
+      "name": "Sticky Note de Prueba"
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request Webhook Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request Webhook Backend": {
+      "main": [
+        [
+          {
+            "node": "Switch Keyboard Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Keyboard Router": {
+      "main": [
+        [
+          {
+            "node": "Telegram Send (Bottom Keyboard)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram Send (Inline Keyboard)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram Send (No Keyboard)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "c7ad5dc1-b80b-48ef-bd3e-43ad6e7150c0",
+  "activeVersionId": "c7ad5dc1-b80b-48ef-bd3e-43ad6e7150c0",
+  "versionCounter": 95,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-06-02T23:35:46.027Z",
+      "createdAt": "2026-06-02T23:35:46.027Z",
+      "role": "workflow:owner",
+      "workflowId": "071LfThtq1qeiOIM",
+      "projectId": "ZxDGhDESpUv8wW1t",
+      "project": {
+        "updatedAt": "2026-05-20T00:38:37.774Z",
+        "createdAt": "2026-05-20T00:37:31.302Z",
+        "id": "ZxDGhDESpUv8wW1t",
+        "name": "Alejandro Villalpando <aleu9393@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "9a5782e9-61e6-4a90-8580-de39c63840f7"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": "Version c7ad5dc1",
+    "description": ""
+  }
+}

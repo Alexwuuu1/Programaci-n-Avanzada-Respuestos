@@ -1,0 +1,195 @@
+{
+  "updatedAt": "2026-06-02T05:32:33.829Z",
+  "createdAt": "2026-06-02T05:32:33.829Z",
+  "id": "yX3tdGb1Ma6yete3",
+  "name": "Repuestos - Inventario",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "repuestos-inventario",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "78c86623-622a-4eca-b383-01dd3b08ead3",
+      "name": "Webhook Inventario",
+      "webhookId": "repuestos-inventario"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = String($json.body?.chatInput || '').trim();\n\nconst normalize = (value) => value\n  .normalize('NFD')\n  .replace(/[\\u0300-\\u036f]/g, '')\n  .toLowerCase();\n\nconst text = normalize(input);\nconst hasAny = (words) => words.some((word) => text.includes(word));\nlet query = '';\nlet intent = 'busqueda_especifica';\n\nif (!text || text.length < 2) {\n  query = '__HELP__';\n  intent = 'ayuda';\n} else if (/^(hola|hi|buenas|buen dia|buenos dias|buenas tardes|buenas noches|como estas|que tal|gracias|ok|dale|chau|adios)\\b/.test(text)) {\n  query = '__CHAT__';\n  intent = 'chat';\n} else if (hasAny(['que puedes hacer', 'ayuda', 'no entiendo', 'como te uso', 'que te puedo preguntar'])) {\n  query = '__HELP__';\n  intent = 'ayuda';\n} else if (hasAny(['que repuestos tenemos', 'cuantos repuestos', 'inventario general', 'catalogo', 'productos disponibles', 'lista de productos', 'que inventario', 'repuestos tenemos', 'stock general', 'que productos tenemos'])) {\n  query = '__ALL__';\n  intent = 'inventario_general';\n} else if (hasAny(['stock bajo', 'stock critico', 'por agotarse', 'agotarse', 'critico', 'alerta'])) {\n  query = '__INVENTORY_LOW__';\n  intent = 'inventario_bajo';\n} else {\n  const stop = new Set([\n    'tienes', 'tenes', 'hay', 'precio', 'donde', 'esta', 'ubicacion',\n    'stock', 'repuesto', 'repuestos', 'pieza', 'piezas', 'para', 'del',\n    'de', 'la', 'el', 'los', 'las', 'un', 'una', 'que', 'cual', 'cuanto',\n    'cuantos', 'compatible', 'compatibles', 'marca', 'oem'\n  ]);\n\n  const terms = text\n    .replace(/[^a-z0-9+.-]+/g, ' ')\n    .split(/\\s+/)\n    .filter((term) => term.length >= 2 && !stop.has(term))\n    .slice(0, 8);\n\n  query = terms.length ? terms.join(' ') : '__HELP__';\n  intent = terms.length ? 'busqueda_especifica' : 'ayuda';\n}\n\nreturn [{\n  json: {\n    pregunta: input,\n    query,\n    intent\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "664b6c4f-5947-4325-9ba3-a194b8884884",
+      "name": "Clasificar Consulta"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:3000/api/inventario/stock-query",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.query }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ],
+      "id": "e7279668-168b-4c54-874c-dca06c34eac4",
+      "name": "API Inventario"
+    },
+    {
+      "parameters": {
+        "jsCode": "const api = $input.first().json || {};\nconst source = $('Clasificar Consulta').item.json;\nconst repuestos = Array.isArray(api.repuestos) ? api.repuestos : [];\n\nconst lowStock = repuestos.filter((p) => Number(p.stock || 0) <= Number(p.stockMinimo || 0));\n\nreturn [{\n  json: {\n    pregunta: source.pregunta,\n    query: source.query,\n    intent: source.intent,\n    repuestos,\n    lowStock,\n    totalProductos: Number(api.totalProductos || 0),\n    totalUnidades: Number(api.totalUnidades || 0)\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ],
+      "id": "752b9920-b75d-440e-9535-aa0774993786",
+      "name": "Preparar Contexto"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst money = (value) => `Bs. ${Number(value || 0).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;\nconst itemLine = (p, index) => {\n  const low = Number(p.stock || 0) <= Number(p.stockMinimo || 0);\n  const alert = Number(p.stock || 0) === 0 ? 'Agotado' : low ? 'Stock bajo' : p.estadoStock || 'Disponible';\n  return `${index + 1}. **${p.nombre}**\\n- OEM: ${p.oem}\\n- Marca: ${p.marca}\\n- Precio: ${money(p.precio)}\\n- Ubicacion: ${p.ubicacion}\\n- Compatibilidad: ${p.compatibilidad}\\n- Stock: ${p.stock} unidades (${alert})`;\n};\n\nlet output = '';\n\nif (data.intent === 'chat') {\n  output = 'Estoy listo para ayudarte con inventario: stock, precios, ubicaciones, OEM, marcas y compatibilidad. ¿Qué repuesto quieres revisar?';\n} else if (data.intent === 'ayuda') {\n  output = 'Puedes preguntarme cosas como:\\n- ¿Qué repuestos tenemos?\\n- ¿Dónde está el filtro de aceite Hilux?\\n- ¿Tienes bujía Bosch?\\n- Precio de FR7KPP33U+\\n- Piezas compatibles con Toyota Corolla\\n- Productos con stock bajo';\n} else if (data.intent === 'inventario_general') {\n  const list = data.repuestos.slice(0, 10).map(itemLine).join('\\n\\n');\n  output = `Tenemos **${data.totalProductos} productos activos** y **${data.totalUnidades} unidades** en stock.\\n\\n${list || 'No recibí productos desde la API.'}\\n\\n¿Quieres buscar por OEM, marca o modelo?`;\n} else if (data.intent === 'inventario_bajo') {\n  const list = data.lowStock.slice(0, 15).map(itemLine).join('\\n\\n');\n  output = list\n    ? `Estos productos están en stock bajo o crítico:\\n\\n${list}\\n\\n¿Quieres que revisemos proveedores para reabastecer?`\n    : 'Con los datos recibidos no detecté productos en stock crítico. ¿Quieres revisar una categoría o marca específica?';\n} else if (data.repuestos.length > 0) {\n  const list = data.repuestos.slice(0, 8).map(itemLine).join('\\n\\n');\n  output = `Encontré estas coincidencias:\\n\\n${list}\\n\\n¿Quieres que revise otra pieza o un OEM específico?`;\n} else {\n  output = `No encontré coincidencias claras para \"${data.pregunta}\". Prueba con un OEM, marca, modelo del vehículo o nombre alternativo.\\n\\nEjemplos:\\n- FR7KPP33U+\\n- bujía Bosch\\n- filtro aceite Hilux\\n- repuestos Toyota Corolla`;\n}\n\nreturn [{ json: { output } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ],
+      "id": "81b63a8f-6a6f-402e-aa2e-1af7516a6824",
+      "name": "Redactor Inventario"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst output = item.text || item.output || item.response || 'No pude generar una respuesta en este momento.';\nreturn [{ json: { output } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        0
+      ],
+      "id": "9457b1b8-2314-49c8-a622-4ab47f0ee225",
+      "name": "Formatear Respuesta Web"
+    }
+  ],
+  "connections": {
+    "Webhook Inventario": {
+      "main": [
+        [
+          {
+            "node": "Clasificar Consulta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clasificar Consulta": {
+      "main": [
+        [
+          {
+            "node": "API Inventario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API Inventario": {
+      "main": [
+        [
+          {
+            "node": "Preparar Contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Contexto": {
+      "main": [
+        [
+          {
+            "node": "Redactor Inventario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactor Inventario": {
+      "main": [
+        [
+          {
+            "node": "Formatear Respuesta Web",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "494299e0-e21c-4edf-bae9-5b60aaeb9de4",
+  "activeVersionId": "494299e0-e21c-4edf-bae9-5b60aaeb9de4",
+  "versionCounter": 36,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-06-02T05:32:33.831Z",
+      "createdAt": "2026-06-02T05:32:33.831Z",
+      "role": "workflow:owner",
+      "workflowId": "yX3tdGb1Ma6yete3",
+      "projectId": "ZxDGhDESpUv8wW1t",
+      "project": {
+        "updatedAt": "2026-05-20T00:38:37.774Z",
+        "createdAt": "2026-05-20T00:37:31.302Z",
+        "id": "ZxDGhDESpUv8wW1t",
+        "name": "Alejandro Villalpando <aleu9393@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "9a5782e9-61e6-4a90-8580-de39c63840f7"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": "Version 494299e0",
+    "description": ""
+  }
+}

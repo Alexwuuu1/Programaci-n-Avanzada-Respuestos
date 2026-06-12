@@ -4,6 +4,10 @@ export interface ProductionOrder {
   productName: string;
   productOem: string;
   quantity: number;
+  cantidadProducida?: number;
+  prioridad: "Baja" | "Media" | "Alta" | "Urgente";
+  costoProduccion?: number;
+  observaciones?: string;
   startDate: string;
   endDate?: string;
   status: "Pendiente" | "En Proceso" | "Finalizado" | "Cancelado";

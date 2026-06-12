@@ -1,0 +1,198 @@
+{
+  "updatedAt": "2026-06-02T05:26:43.150Z",
+  "createdAt": "2026-06-02T05:26:43.150Z",
+  "id": "ttrFVyNI6SI5cMLv",
+  "name": "Repuestos - Produccion",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "repuestos-produccion",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "ded2182a-79ab-402a-a06d-32a9ed2485b1",
+      "name": "Webhook Produccion",
+      "webhookId": "repuestos-produccion"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:3000/api/produccion",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "a81c92fc-5bfb-4b0a-9d63-415e49f971e8",
+      "name": "API Produccion"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ordenes = Array.isArray($input.first().json) ? $input.first().json : [];\nconst pregunta = $('Webhook Produccion').item.json.body?.chatInput || '';\nconst activas = ordenes.filter((o) => ['Pendiente', 'EnProceso', 'En Proceso'].includes(o.status || o.estado));\nconst completadas = ordenes.filter((o) => ['Completado', 'Finalizado'].includes(o.status || o.estado));\nconst urgentes = ordenes.filter((o) => String(o.priority || o.prioridad || '').toLowerCase().includes('urgente') || String(o.priority || o.prioridad || '').toLowerCase().includes('alta'));\nreturn [{ json: { pregunta, ordenes: ordenes.slice(0, 50), activas, resumen: { total: ordenes.length, activas: activas.length, completadas: completadas.length, urgentes: urgentes.length } } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "id": "05c77735-2e54-44d9-8012-ab97cfb1ca75",
+      "name": "Preparar Produccion"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Eres Alejandro, operador web de produccion/fabrica.\n\nConsulta: \"{{ $json.pregunta }}\"\n\nResumen real:\n{{ JSON.stringify($json.resumen) }}\n\nOrdenes recientes:\n{{ JSON.stringify($json.ordenes) }}\n\nOrdenes activas:\n{{ JSON.stringify($json.activas) }}\n\nReglas:\n- Responde solo sobre produccion, ordenes, lotes, responsables, prioridades y estado de fabrica.\n- No inventes datos.\n- Si preguntan activas o pendientes, lista producto, cantidad, responsable, estado, prioridad y fechas si existen.\n- Si preguntan completadas, resume las ultimas completadas.\n- Si no entiendes, ofrece ejemplos: ordenes activas, produccion pendiente, lotes finalizados, urgentes.\n- Cierra con una pregunta breve."
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        720,
+        0
+      ],
+      "id": "91b2194d-fa07-4c95-bfcb-220aa391c7ae",
+      "name": "Redactor Produccion"
+    },
+    {
+      "parameters": {
+        "model": "llama3.1:latest",
+        "options": {
+          "temperature": 0.2,
+          "numCtx": 8192,
+          "numPredict": 1400
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        720,
+        224
+      ],
+      "id": "e5fd731d-f460-4855-942e-dc1b1d84a4b2",
+      "name": "Ollama Redactor",
+      "credentials": {
+        "ollamaApi": {
+          "id": "IHCfquUorqzC2NC8",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json; return [{ json: { output: item.text || item.output || item.response || 'No pude generar una respuesta.' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        0
+      ],
+      "id": "37887c42-0c29-4354-9cce-1e4ccba66651",
+      "name": "Formatear Respuesta Web"
+    }
+  ],
+  "connections": {
+    "Webhook Produccion": {
+      "main": [
+        [
+          {
+            "node": "API Produccion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API Produccion": {
+      "main": [
+        [
+          {
+            "node": "Preparar Produccion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Produccion": {
+      "main": [
+        [
+          {
+            "node": "Redactor Produccion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactor Produccion": {
+      "main": [
+        [
+          {
+            "node": "Formatear Respuesta Web",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Redactor": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Redactor Produccion",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "c158365b-2a8d-4062-8e6c-f65571b02e6a",
+  "activeVersionId": "c158365b-2a8d-4062-8e6c-f65571b02e6a",
+  "versionCounter": 36,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-06-02T05:26:43.152Z",
+      "createdAt": "2026-06-02T05:26:43.152Z",
+      "role": "workflow:owner",
+      "workflowId": "ttrFVyNI6SI5cMLv",
+      "projectId": "ZxDGhDESpUv8wW1t",
+      "project": {
+        "updatedAt": "2026-05-20T00:38:37.774Z",
+        "createdAt": "2026-05-20T00:37:31.302Z",
+        "id": "ZxDGhDESpUv8wW1t",
+        "name": "Alejandro Villalpando <aleu9393@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "9a5782e9-61e6-4a90-8580-de39c63840f7"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": "Version c158365b",
+    "description": ""
+  }
+}

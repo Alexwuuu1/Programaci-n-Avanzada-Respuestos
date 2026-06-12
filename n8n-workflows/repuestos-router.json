@@ -1,0 +1,160 @@
+{
+  "updatedAt": "2026-06-02T05:28:44.506Z",
+  "createdAt": "2026-06-02T05:28:44.506Z",
+  "id": "6uUR40g9Wq5Q5022",
+  "name": "Repuestos - Router Orquestador",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "repuestos-router",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "aee21c74-19e9-4069-8fe2-174638272384",
+      "name": "Webhook Router",
+      "webhookId": "repuestos-router"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = String($json.body?.chatInput || '').trim();\nconst sessionId = String($json.body?.sessionId || 'router-session');\nconst normalize = (value) => value\n  .normalize('NFD')\n  .replace(/[\\u0300-\\u036f]/g, '')\n  .toLowerCase();\n\nconst text = normalize(input);\nconst hasAny = (words) => words.some((word) => text.includes(word));\n\nlet module = 'dashboard';\nlet webhook = 'repuestos-chat-v2';\nlet confidence = 'media';\nlet reason = 'Consulta general o ambigua.';\n\nif (!text || text.length < 2) {\n  module = 'dashboard';\n  webhook = 'repuestos-chat-v2';\n  confidence = 'baja';\n  reason = 'Mensaje vacio o demasiado corto.';\n} else if (hasAny(['venta', 'vendimos', 'vendido', 'facturacion', 'boleta', 'historial de venta', 'metodo de pago', 'cobro de venta'])) {\n  module = 'sales';\n  webhook = 'repuestos-ventas';\n  confidence = 'alta';\n  reason = 'Consulta relacionada con ventas.';\n} else if (hasAny(['caja', 'finanza', 'ganancia', 'utilidad', 'egreso', 'ingreso', 'cuentas por cobrar', 'flujo de caja', 'abono'])) {\n  module = 'finance';\n  webhook = 'repuestos-finanzas';\n  confidence = 'alta';\n  reason = 'Consulta relacionada con caja o finanzas.';\n} else if (hasAny(['cliente', 'crm', 'deudor', 'premium', 'frecuente', 'cartera', 'fidelidad'])) {\n  module = 'clients';\n  webhook = 'repuestos-clientes';\n  confidence = 'alta';\n  reason = 'Consulta relacionada con clientes.';\n} else if (hasAny(['compra', 'proveedor', 'pedido', 'abastecimiento', 'recepcion', 'recibido'])) {\n  module = 'purchases';\n  webhook = 'repuestos-compras';\n  confidence = 'alta';\n  reason = 'Consulta relacionada con compras o proveedores.';\n} else if (hasAny(['produccion', 'fabrica', 'torneria', 'orden de produccion', 'lote', 'fabricar'])) {\n  module = 'production';\n  webhook = 'repuestos-produccion';\n  confidence = 'alta';\n  reason = 'Consulta relacionada con produccion.';\n} else if (hasAny(['empleado', 'personal', 'operario', 'vendedor', 'turno', 'cargo'])) {\n  module = 'employees';\n  webhook = 'repuestos-empleados';\n  confidence = 'alta';\n  reason = 'Consulta relacionada con empleados.';\n} else if (hasAny(['usuario', 'rol', 'permiso', 'acceso', 'cuenta del sistema'])) {\n  module = 'users';\n  webhook = 'repuestos-usuarios';\n  confidence = 'alta';\n  reason = 'Consulta relacionada con usuarios o roles.';\n} else if (hasAny(['repuesto', 'repuestos', 'stock', 'oem', 'precio', 'ubicacion', 'donde esta', 'compatible', 'compatibilidad', 'catalogo', 'inventario', 'producto', 'productos', 'bujia', 'filtro', 'aceite', 'hilux', 'corolla', 'bosch', 'brembo', 'denso', 'toyota'])) {\n  module = 'inventory';\n  webhook = 'repuestos-inventario';\n  confidence = 'alta';\n  reason = 'Consulta relacionada con inventario o repuestos.';\n} else if (hasAny(['dashboard', 'panel', 'kpi', 'indicador', 'estado general', 'situacion actual', 'resumen del sistema', 'como esta el negocio'])) {\n  module = 'dashboard';\n  webhook = 'repuestos-chat-v2';\n  confidence = 'alta';\n  reason = 'Consulta relacionada con dashboard.';\n}\n\nreturn [{\n  json: {\n    chatInput: input,\n    sessionId,\n    module,\n    webhook,\n    confidence,\n    reason,\n    targetUrl: `http://host.docker.internal:5678/webhook/${webhook}`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        0
+      ],
+      "id": "5d6a2324-cfaa-4bcf-8034-7c80bf1fdc81",
+      "name": "Clasificar Módulo"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.targetUrl }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chatInput",
+              "value": "={{ $json.chatInput }}"
+            },
+            {
+              "name": "sessionId",
+              "value": "={{ $json.sessionId + '-' + $json.module }}"
+            },
+            {
+              "name": "module",
+              "value": "={{ $json.module }}"
+            },
+            {
+              "name": "routedBy",
+              "value": "router"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        544,
+        0
+      ],
+      "id": "2e7f988e-3e97-466a-aa52-fe43ee8f2d14",
+      "name": "Llamar Agente Específico"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nlet output = '';\n\nif (Array.isArray(response) && response[0]?.output) {\n  output = response[0].output;\n} else if (typeof response?.output === 'string') {\n  output = response.output;\n} else if (typeof response?.response === 'string') {\n  output = response.response;\n} else if (typeof response === 'string') {\n  output = response;\n} else {\n  output = JSON.stringify(response);\n}\n\nreturn [{ json: { output: output || 'No pude obtener respuesta del agente especifico.' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        0
+      ],
+      "id": "388b4a0a-9793-4bc6-a7d1-0c3a8176043e",
+      "name": "Formatear Respuesta Web"
+    }
+  ],
+  "connections": {
+    "Webhook Router": {
+      "main": [
+        [
+          {
+            "node": "Clasificar Módulo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clasificar Módulo": {
+      "main": [
+        [
+          {
+            "node": "Llamar Agente Específico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Llamar Agente Específico": {
+      "main": [
+        [
+          {
+            "node": "Formatear Respuesta Web",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "9df47565-aab5-4ca5-8534-568f8a4f596b",
+  "activeVersionId": "9df47565-aab5-4ca5-8534-568f8a4f596b",
+  "versionCounter": 36,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-06-02T05:28:44.508Z",
+      "createdAt": "2026-06-02T05:28:44.508Z",
+      "role": "workflow:owner",
+      "workflowId": "6uUR40g9Wq5Q5022",
+      "projectId": "ZxDGhDESpUv8wW1t",
+      "project": {
+        "updatedAt": "2026-05-20T00:38:37.774Z",
+        "createdAt": "2026-05-20T00:37:31.302Z",
+        "id": "ZxDGhDESpUv8wW1t",
+        "name": "Alejandro Villalpando <aleu9393@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "9a5782e9-61e6-4a90-8580-de39c63840f7"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": "Version 9df47565",
+    "description": ""
+  }
+}

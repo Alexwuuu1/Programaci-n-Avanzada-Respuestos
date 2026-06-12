@@ -1,0 +1,196 @@
+{
+  "updatedAt": "2026-06-01T23:06:35.000Z",
+  "createdAt": "2026-06-01T22:43:16.480Z",
+  "id": "QJuKCPO0aEpr4YlR",
+  "name": "Agente Inteligente de Stock - Antigravity Motors (Webhook API)",
+  "description": null,
+  "active": false,
+  "isArchived": true,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "repuestos-chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        496,
+        -128
+      ],
+      "id": "20e01190-22fe-4e4a-9b19-57464e9ea503",
+      "name": "Webhook",
+      "webhookId": "b4c5aaaa-e9aa-4bdc-84f8-c67a16c02fb4"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "Eres el Agente Inteligente de Almacén de Antigravity Motors.\nTu propósito es responder dudas sobre stock, ubicación, precios y marcas de los repuestos utilizando la herramienta `consultar_stock`.\n\nReglas:\n1. Si el usuario te pregunta por una pieza (ej. '¿hay pistones?', 'dame el stock del OEM 12345'), SIEMPRE usa la herramienta `consultar_stock` pasando la palabra clave o el OEM en el parámetro `q`.\n2. Al presentar la información, hazlo de forma limpia, estructurada y profesional (usa viñetas o tablas markdown si son varios productos).\n3. Muestra el precio formateado (ej. 150 Bs.), la ubicación física (ej. Pasillo A, Estante 2), y el stock actual.\n4. Si el stock es 0, advierte que está 'AGOTADO'. Si es menor o igual al stock mínimo, indica que está en stock 'CRÍTICO' y se sugiere reabastecer.\n5. Si no encuentras nada con la herramienta, responde cortésmente que no se encontró ningún repuesto activo con esa descripción."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.6,
+      "position": [
+        720,
+        -160
+      ],
+      "id": "c1d9fe9f-b4d1-4959-9dd2-52e490516f99",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "llama3.1:latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        528,
+        112
+      ],
+      "id": "b44cfb93-c08b-4ce4-ac0e-e3cd1739839b",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "IHCfquUorqzC2NC8",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.2,
+      "position": [
+        736,
+        112
+      ],
+      "id": "c6e4549d-b7d1-44d9-bac8-b1a3637ae6fb",
+      "name": "Window Buffer Memory"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:3000/api/inventario/stock-query"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        1040,
+        128
+      ],
+      "id": "2b8e499f-19f3-4bd1-846d-c4952bbd3e16",
+      "name": "HTTP Request Tool"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        -112
+      ],
+      "id": "9393ec8b-c46e-49c5-994a-2de4888b113f",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "ef0d6597-4c31-4500-a1fd-b1c8e1cc1e57",
+  "activeVersionId": null,
+  "versionCounter": 17,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-06-01T22:43:16.492Z",
+      "createdAt": "2026-06-01T22:43:16.492Z",
+      "role": "workflow:owner",
+      "workflowId": "QJuKCPO0aEpr4YlR",
+      "projectId": "ZxDGhDESpUv8wW1t",
+      "project": {
+        "updatedAt": "2026-05-20T00:38:37.774Z",
+        "createdAt": "2026-05-20T00:37:31.302Z",
+        "id": "ZxDGhDESpUv8wW1t",
+        "name": "Alejandro Villalpando <aleu9393@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "9a5782e9-61e6-4a90-8580-de39c63840f7"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": null,
+    "description": null
+  }
+}
