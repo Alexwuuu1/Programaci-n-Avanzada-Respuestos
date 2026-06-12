@@ -94,7 +94,13 @@ export const ChatAgentFeature: React.FC = () => {
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeTopicId, setActiveTopicId] = useState(() => localStorage.getItem("ai_active_topic") || "general");
-  const [n8nUrl, setN8nUrl] = useState(() => localStorage.getItem("ai_n8n_url") || "/api/telegram/chat-agent");
+  const [n8nUrl, setN8nUrl] = useState<string>(() => {
+    const saved = localStorage.getItem("ai_n8n_url");
+    if (saved && (saved.includes("localhost:5678") || saved.includes("127.0.0.1:5678") || saved.includes("host.docker.internal"))) {
+      return "/api/telegram/chat-agent";
+    }
+    return saved || "/api/telegram/chat-agent";
+  });
   const [showAdvanced, setShowAdvanced] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
